@@ -49,6 +49,19 @@ impl StatefulWidget for ProfileTable<'_> {
     type State = TableState;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
+        if self.profiles.is_empty() {
+            let empty_msg = "No profiles found. Create one with 'n' or run 'bridle profile create'";
+            let x = area.x + area.width.saturating_sub(empty_msg.len() as u16) / 2;
+            let y = area.y + area.height / 2;
+            buf.set_string(
+                x,
+                y,
+                empty_msg,
+                Style::default().add_modifier(Modifier::DIM),
+            );
+            return;
+        }
+
         let header_cells = ["", "Name", "Model", "MCP"]
             .iter()
             .map(|h| Cell::from(*h).style(Style::default().add_modifier(Modifier::BOLD)));

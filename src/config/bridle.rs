@@ -4,6 +4,28 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+/// User preference for TUI view mode.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum ViewPreference {
+    /// Classic table-based view.
+    #[default]
+    Dashboard,
+    /// Legacy list view.
+    Legacy,
+    /// Card-based view (requires tui-cards feature).
+    #[cfg(feature = "tui-cards")]
+    Cards,
+}
+
+/// TUI-specific configuration.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct TuiConfig {
+    /// Preferred view mode.
+    #[serde(default)]
+    pub view: ViewPreference,
+}
+
 /// Bridle's configuration.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct BridleConfig {
@@ -24,6 +46,10 @@ pub struct BridleConfig {
     /// Falls back to $EDITOR env var, then "vi".
     #[serde(default)]
     pub editor: Option<String>,
+
+    /// TUI-specific settings.
+    #[serde(default)]
+    pub tui: TuiConfig,
 }
 
 impl BridleConfig {

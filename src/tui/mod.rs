@@ -24,7 +24,7 @@ use ratatui::{
 use crate::config::{BridleConfig, ProfileInfo, ProfileManager, ProfileName};
 use crate::error::Error;
 use views::ViewMode;
-use widgets::{DetailPane, HarnessTabs, ProfileTable};
+use widgets::{DetailPane, HarnessTabs, ProfileTable, StatusBar};
 
 type Tui = Terminal<CrosstermBackend<Stdout>>;
 
@@ -372,6 +372,8 @@ impl App {
                     Pane::Harnesses => self.prev_harness(),
                     Pane::Profiles => self.prev_profile(),
                 },
+                #[cfg(feature = "tui-cards")]
+                ViewMode::Cards => self.prev_profile(),
             },
             KeyCode::Down | KeyCode::Char('j') => match self.view_mode {
                 ViewMode::Dashboard => self.next_profile(),
@@ -379,6 +381,8 @@ impl App {
                     Pane::Harnesses => self.next_harness(),
                     Pane::Profiles => self.next_profile(),
                 },
+                #[cfg(feature = "tui-cards")]
+                ViewMode::Cards => self.next_profile(),
             },
             KeyCode::Left | KeyCode::Char('h') => {
                 if self.view_mode == ViewMode::Dashboard {
@@ -402,6 +406,10 @@ impl App {
                             self.toggle_expansion();
                         }
                     }
+                }
+                #[cfg(feature = "tui-cards")]
+                ViewMode::Cards => {
+                    self.switch_to_selected();
                 }
             },
             KeyCode::Char(' ') => {
@@ -542,10 +550,12 @@ fn ui(frame: &mut Frame, app: &mut App) {
     match app.view_mode {
         ViewMode::Legacy => render_legacy_view(frame, app),
         ViewMode::Dashboard => render_dashboard_view(frame, app),
+        #[cfg(feature = "tui-cards")]
+        ViewMode::Cards => render_dashboard_view(frame, app), // TODO: implement cards view
     }
 
     if app.show_help {
-        render_help_modal(frame, frame.area());
+        render_help_modal(frame, frame.area(), app.view_mode);
     }
 }
 
@@ -663,9 +673,8 @@ fn render_harness_tabs(frame: &mut Frame, app: &App, area: Rect) {
 
     for kind in &app.harnesses {
         let harness = Harness::new(*kind);
-        let has_active = app.bridle_config.active_profile_for(harness.id()).is_some();
-        if has_active {
-            tabs = tabs.with_active_indicator(harness.id(), true);
+        if app.bridle_config.active_profile_for(harness.id()).is_some() {
+            tabs = tabs.with_active_indicator(harness.id());
         }
     }
 
@@ -986,15 +995,38 @@ fn render_profile_pane(frame: &mut Frame, app: &mut App, area: Rect) {
     }
 }
 
-fn render_help_modal(frame: &mut Frame, area: Rect) {
-    let help_text = vec![
-        Line::from(vec![Span::styled(
-            "Navigation",
-            Style::default().add_modifier(Modifier::BOLD),
-        )]),
-        Line::from("  j / ↓     Move down"),
-        Line::from("  k / ↑     Move up"),
-        Line::from("  Tab       Switch pane"),
+fn render_help_modal(frame: &mut Frame, area: Rect, view_mode: views::ViewMode) {
+    let mut help_text = vec![Line::from(vec![Span::styled(
+        "Navigation",
+        Style::default().add_modifier(Modifier::BOLD),
+    )])];
+
+    #[cfg(feature = "tui-cards")]
+    if matches!(view_mode, views::ViewMode::Cards) {
+        help_text.extend([
+            Line::from("  ←/→       Move left/right"),
+            Line::from("  ↑/↓       Move up/down"),
+            Line::from("  Space     View details"),
+        ]);
+    } else {
+        help_text.extend([
+            Line::from("  j / ↓     Move down"),
+            Line::from("  k / ↑     Move up"),
+            Line::from("  Tab       Switch pane"),
+        ]);
+    }
+
+    #[cfg(not(feature = "tui-cards"))]
+    {
+        let _ = view_mode;
+        help_text.extend([
+            Line::from("  j / ↓     Move down"),
+            Line::from("  k / ↑     Move up"),
+            Line::from("  Tab       Switch pane"),
+        ]);
+    }
+
+    help_text.extend([
         Line::from(""),
         Line::from(vec![Span::styled(
             "Actions",
@@ -1010,7 +1042,7 @@ fn render_help_modal(frame: &mut Frame, area: Rect) {
             "Harness Status",
             Style::default().add_modifier(Modifier::BOLD),
         )]),
-        Line::from("  *         Tracked (active profile)"),
+        Line::from("  ●         Tracked (active profile)"),
         Line::from("  +         Has config (not tracked)"),
         Line::from("  -         Binary only (no config)"),
         Line::from("            Not installed"),
@@ -1021,7 +1053,7 @@ fn render_help_modal(frame: &mut Frame, area: Rect) {
         )]),
         Line::from("  ?         Toggle help"),
         Line::from("  q / Esc   Quit"),
-    ];
+    ]);
 
     let width = 40;
     let height = help_text.len() as u16 + 4;
@@ -1043,37 +1075,8 @@ fn render_help_modal(frame: &mut Frame, area: Rect) {
 }
 
 fn render_status_bar(frame: &mut Frame, app: &App, area: Rect) {
-    let help = match app.view_mode {
-        ViewMode::Dashboard => {
-            "q:quit  h/l:harness  j/k:profile  Enter:switch  n:new  d:del  e:edit  r:refresh  ?:help"
-        }
-        ViewMode::Legacy => {
-            "q:quit  Tab:pane  j/k:nav  Enter:switch  n:new  d:del  e:edit  r:refresh  ?:help"
-        }
-    };
-
-    let mode_indicator = match app.view_mode {
-        ViewMode::Dashboard => "[Dashboard]",
-        ViewMode::Legacy => "[Legacy]",
-    };
-
-    let msg = app.status_message.as_deref().unwrap_or("");
-
-    let spans = vec![
-        Span::styled(
-            mode_indicator,
-            Style::default()
-                .fg(Color::Cyan)
-                .add_modifier(Modifier::BOLD),
-        ),
-        Span::raw(" "),
-        Span::styled(help, Style::default().add_modifier(Modifier::DIM)),
-        Span::raw("  "),
-        Span::styled(msg, Style::default().fg(Color::Yellow)),
-    ];
-
-    let paragraph = Paragraph::new(Line::from(spans));
-    frame.render_widget(paragraph, area);
+    let status_bar = StatusBar::new(app.view_mode).message(app.status_message.as_deref());
+    frame.render_widget(status_bar, area);
 }
 
 pub fn run() -> Result<(), Error> {

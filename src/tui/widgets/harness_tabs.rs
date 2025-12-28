@@ -1,5 +1,6 @@
 use crate::harness::HarnessConfig;
-use harness_locate::{Harness, HarnessKind};
+use crate::tui::theme::Theme;
+use harness_locate::{Harness, HarnessKind, InstallationStatus};
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
@@ -8,10 +9,37 @@ use ratatui::{
     widgets::{Block, Borders, Tabs, Widget},
 };
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum HarnessStatus {
+    Active,
+    Installed,
+    BinaryOnly,
+    NotInstalled,
+}
+
+impl HarnessStatus {
+    pub fn indicator(self) -> char {
+        match self {
+            Self::Active => '●',
+            Self::Installed => '+',
+            Self::BinaryOnly => '-',
+            Self::NotInstalled => ' ',
+        }
+    }
+
+    pub fn style(self) -> Style {
+        match self {
+            Self::Active => Style::default().fg(Color::Green),
+            Self::Installed => Theme::harness_installed(),
+            Self::BinaryOnly | Self::NotInstalled => Theme::harness_not_installed(),
+        }
+    }
+}
+
 pub struct HarnessTabs<'a> {
     harnesses: &'a [HarnessKind],
     selected: usize,
-    statuses: Vec<(char, bool)>,
+    statuses: Vec<HarnessStatus>,
 }
 
 impl<'a> HarnessTabs<'a> {
@@ -20,9 +48,12 @@ impl<'a> HarnessTabs<'a> {
             .iter()
             .map(|kind| {
                 let harness = Harness::new(*kind);
-                let installed = harness.is_installed();
-                let indicator = if installed { '+' } else { ' ' };
-                (indicator, installed)
+                match harness.installation_status() {
+                    Ok(InstallationStatus::FullyInstalled { .. })
+                    | Ok(InstallationStatus::ConfigOnly { .. }) => HarnessStatus::Installed,
+                    Ok(InstallationStatus::BinaryOnly { .. }) => HarnessStatus::BinaryOnly,
+                    _ => HarnessStatus::NotInstalled,
+                }
             })
             .collect();
 
@@ -33,11 +64,11 @@ impl<'a> HarnessTabs<'a> {
         }
     }
 
-    pub fn with_active_indicator(mut self, harness_id: &str, has_active: bool) -> Self {
+    pub fn with_active_indicator(mut self, harness_id: &str) -> Self {
         for (i, kind) in self.harnesses.iter().enumerate() {
             let h = Harness::new(*kind);
-            if h.id() == harness_id && has_active {
-                self.statuses[i].0 = '*';
+            if h.id() == harness_id {
+                self.statuses[i] = HarnessStatus::Active;
             }
         }
         self
@@ -50,16 +81,12 @@ impl Widget for HarnessTabs<'_> {
             .harnesses
             .iter()
             .zip(self.statuses.iter())
-            .map(|(kind, (indicator, installed))| {
+            .map(|(kind, status)| {
                 let harness = Harness::new(*kind);
                 let name = harness.kind().to_string();
-                let style = if *installed {
-                    Style::default()
-                } else {
-                    Style::default().fg(Color::DarkGray)
-                };
+                let style = status.style();
                 Line::from(vec![
-                    Span::styled(format!("{} ", indicator), style),
+                    Span::styled(format!("{} ", status.indicator()), style),
                     Span::styled(name, style),
                 ])
             })
@@ -70,7 +97,7 @@ impl Widget for HarnessTabs<'_> {
                 Block::default()
                     .title(" Harnesses ")
                     .borders(Borders::ALL)
-                    .border_style(Style::default().fg(Color::Cyan)),
+                    .border_style(Theme::border_active()),
             )
             .select(self.selected)
             .style(Style::default())
