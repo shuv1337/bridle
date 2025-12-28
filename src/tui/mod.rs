@@ -566,75 +566,133 @@ fn render_profile_expanded(profile: &ProfileInfo) -> Vec<Line<'static>> {
         ),
     ]));
 
-    let mut theme_model = Vec::new();
+    #[derive(Clone)]
+    enum Section<'a> {
+        Theme(&'a str),
+        Model(&'a str),
+        Mcp(&'a [crate::config::McpServerInfo]),
+        Resources(&'static str, &'a crate::config::ResourceSummary),
+        Rules(&'a std::path::Path),
+        Error(&'a str),
+    }
+
+    let mut sections: Vec<Section> = Vec::new();
+
     if let Some(ref theme) = profile.theme {
-        theme_model.push(format!("Theme: {}", theme));
+        sections.push(Section::Theme(theme));
     }
     if let Some(ref model) = profile.model {
-        theme_model.push(format!("Model: {}", model));
+        sections.push(Section::Model(model));
     }
-    if !theme_model.is_empty() {
-        lines.push(Line::styled(
-            format!("  │ {}", theme_model.join("  ")),
-            Style::default().fg(Color::Gray),
-        ));
-    }
-
     if !profile.mcp_servers.is_empty() {
-        let mut spans: Vec<Span> =
-            vec![Span::styled("  │ MCP: ", Style::default().fg(Color::Gray))];
-        for (i, server) in profile.mcp_servers.iter().enumerate() {
-            if i > 0 {
-                spans.push(Span::raw(" "));
-            }
-            let (marker, color) = if server.enabled {
-                ("✓", Color::Green)
-            } else {
-                ("✗", Color::Red)
-            };
-            spans.push(Span::styled(
-                format!("{}{}", marker, server.name),
-                Style::default().fg(color),
-            ));
-        }
-        lines.push(Line::from(spans));
+        sections.push(Section::Mcp(&profile.mcp_servers));
     }
-
-    let mut counts = vec![
-        format!("Skills: {}", profile.skills.items.len()),
-        format!("Commands: {}", profile.commands.items.len()),
-    ];
     if let Some(ref plugins) = profile.plugins {
-        counts.push(format!("Plugins: {}", plugins.items.len()));
+        sections.push(Section::Resources("Plugins", plugins));
     }
     if let Some(ref agents) = profile.agents {
-        counts.push(format!("Agents: {}", agents.items.len()));
+        sections.push(Section::Resources("Agents", agents));
     }
-    lines.push(Line::styled(
-        format!("  │ {}", counts.join("  ")),
-        Style::default().fg(Color::Gray),
-    ));
-
-    if let Some(ref rules) = profile.rules_file
-        && let Some(filename) = rules.file_name()
-    {
-        lines.push(Line::styled(
-            format!("  │ Rules: {}", filename.to_string_lossy()),
-            Style::default().fg(Color::Gray),
-        ));
+    sections.push(Section::Resources("Skills", &profile.skills));
+    sections.push(Section::Resources("Commands", &profile.commands));
+    if let Some(ref rules) = profile.rules_file {
+        sections.push(Section::Rules(rules));
     }
-
     for error in &profile.extraction_errors {
-        lines.push(Line::styled(
-            format!("  │ ⚠ {}", error),
-            Style::default().fg(Color::Yellow),
-        ));
+        sections.push(Section::Error(error));
     }
 
-    lines.push(Line::styled(
-        "  └─────────────────────────────",
-        Style::default().fg(Color::Gray),
-    ));
+    let total = sections.len();
+    for (idx, section) in sections.iter().enumerate() {
+        let is_last = idx == total - 1;
+        let branch = if is_last { "└─" } else { "├─" };
+        let cont = if is_last { "   " } else { "│  " };
+
+        match section {
+            Section::Theme(theme) => {
+                lines.push(Line::styled(
+                    format!("  {} Theme: {}", branch, theme),
+                    Style::default().fg(Color::Gray),
+                ));
+            }
+            Section::Model(model) => {
+                lines.push(Line::styled(
+                    format!("  {} Model: {}", branch, model),
+                    Style::default().fg(Color::Gray),
+                ));
+            }
+            Section::Mcp(servers) => {
+                lines.push(Line::styled(
+                    format!("  {} MCP ({})", branch, servers.len()),
+                    Style::default().fg(Color::Gray),
+                ));
+                let server_count = servers.len();
+                for (i, server) in servers.iter().enumerate() {
+                    let sub_branch = if i == server_count - 1 {
+                        "└─"
+                    } else {
+                        "├─"
+                    };
+                    let (marker, color) = if server.enabled {
+                        ("✓", Color::Green)
+                    } else {
+                        ("✗", Color::Red)
+                    };
+                    lines.push(Line::from(vec![
+                        Span::styled(
+                            format!("  {} {} ", cont, sub_branch),
+                            Style::default().fg(Color::Gray),
+                        ),
+                        Span::styled(
+                            format!("{} {}", marker, server.name),
+                            Style::default().fg(color),
+                        ),
+                    ]));
+                }
+            }
+            Section::Resources(label, summary) => {
+                lines.push(Line::styled(
+                    format!("  {} {} ({})", branch, label, summary.items.len()),
+                    Style::default().fg(Color::Gray),
+                ));
+                if summary.items.is_empty() {
+                    if !summary.directory_exists {
+                        lines.push(Line::styled(
+                            format!("  {} └─ (directory not found)", cont),
+                            Style::default().fg(Color::DarkGray),
+                        ));
+                    }
+                } else {
+                    let item_count = summary.items.len();
+                    for (i, item) in summary.items.iter().enumerate() {
+                        let sub_branch = if i == item_count - 1 {
+                            "└─"
+                        } else {
+                            "├─"
+                        };
+                        lines.push(Line::styled(
+                            format!("  {} {} {}", cont, sub_branch, item),
+                            Style::default().fg(Color::Gray),
+                        ));
+                    }
+                }
+            }
+            Section::Rules(path) => {
+                if let Some(filename) = path.file_name() {
+                    lines.push(Line::styled(
+                        format!("  {} Rules: {}", branch, filename.to_string_lossy()),
+                        Style::default().fg(Color::Gray),
+                    ));
+                }
+            }
+            Section::Error(error) => {
+                lines.push(Line::styled(
+                    format!("  {} ⚠ {}", branch, error),
+                    Style::default().fg(Color::Yellow),
+                ));
+            }
+        }
+    }
 
     lines
 }
