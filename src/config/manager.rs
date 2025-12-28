@@ -349,22 +349,31 @@ impl ProfileManager {
         harness: &dyn HarnessConfig,
         profile_path: &std::path::Path,
     ) -> Option<String> {
-        if harness.id() != "opencode" {
-            return None;
+        match harness.id() {
+            "opencode" => {
+                let config_path = profile_path.join("opencode.jsonc");
+                if !config_path.exists() {
+                    return None;
+                }
+                let content = std::fs::read_to_string(&config_path).ok()?;
+                let clean_json = strip_jsonc_comments(&content);
+                let parsed: serde_json::Value = serde_json::from_str(&clean_json).ok()?;
+                parsed
+                    .get("theme")
+                    .and_then(|v| v.as_str())
+                    .map(String::from)
+            }
+            "goose" => {
+                let config_path = profile_path.join("config.yaml");
+                let content = std::fs::read_to_string(&config_path).ok()?;
+                let parsed: serde_yaml::Value = serde_yaml::from_str(&content).ok()?;
+                parsed
+                    .get("GOOSE_CLI_THEME")
+                    .and_then(|v| v.as_str())
+                    .map(String::from)
+            }
+            _ => None,
         }
-
-        let config_path = profile_path.join("opencode.jsonc");
-        if !config_path.exists() {
-            return None;
-        }
-
-        let content = std::fs::read_to_string(&config_path).ok()?;
-        let clean_json = strip_jsonc_comments(&content);
-        let parsed: serde_json::Value = serde_json::from_str(&clean_json).ok()?;
-        parsed
-            .get("theme")
-            .and_then(|v| v.as_str())
-            .map(String::from)
     }
 
     fn extract_model(
@@ -415,7 +424,7 @@ impl ProfileManager {
         let content = std::fs::read_to_string(&config_path).ok()?;
         let parsed: serde_yaml::Value = serde_yaml::from_str(&content).ok()?;
         parsed
-            .get("model")
+            .get("GOOSE_MODEL")
             .and_then(|v| v.as_str())
             .map(String::from)
     }
