@@ -229,11 +229,7 @@ impl ProfileManager {
         Ok(())
     }
 
-    pub fn show_profile(
-        &self,
-        harness: &dyn HarnessConfig,
-        name: &ProfileName,
-    ) -> Result<ProfileInfo> {
+    pub fn show_profile(&self, harness: &Harness, name: &ProfileName) -> Result<ProfileInfo> {
         let path = self.profile_path(harness, name);
 
         if !path.exists() {
@@ -248,44 +244,6 @@ impl ProfileManager {
         let mcp_servers = self.extract_mcp_servers(harness, &path)?;
         let theme = self.extract_theme(harness, &path);
         let model = self.extract_model(harness, &path);
-
-        Ok(ProfileInfo {
-            name: name.as_str().to_string(),
-            harness_id,
-            is_active,
-            path,
-            mcp_servers,
-            skills: ResourceSummary::default(),
-            commands: ResourceSummary::default(),
-            plugins: None,
-            agents: None,
-            rules_file: None,
-            theme,
-            model,
-            extraction_errors: Vec::new(),
-        })
-    }
-
-    pub fn show_profile_full(
-        &self,
-        harness: &Harness,
-        harness_config: &dyn HarnessConfig,
-        name: &ProfileName,
-    ) -> Result<ProfileInfo> {
-        let path = self.profile_path(harness_config, name);
-
-        if !path.exists() {
-            return Err(Error::ProfileNotFound(name.as_str().to_string()));
-        }
-
-        let harness_id = harness_config.id().to_string();
-        let is_active = BridleConfig::load()
-            .map(|c| c.active_profile_for(&harness_id) == Some(name.as_str()))
-            .unwrap_or(false);
-
-        let mcp_servers = self.extract_mcp_servers(harness_config, &path)?;
-        let theme = self.extract_theme(harness_config, &path);
-        let model = self.extract_model(harness_config, &path);
 
         let mut extraction_errors = Vec::new();
 
