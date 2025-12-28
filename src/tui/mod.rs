@@ -88,6 +88,20 @@ impl App {
             .and_then(|i| self.harnesses.get(i).copied())
     }
 
+    fn harness_status_indicator(&self, harness: &Harness) -> char {
+        let harness_id = ProfileManager::harness_id(harness);
+        if self.bridle_config.active_profile_for(harness_id).is_some() {
+            return '*';
+        }
+
+        match harness.installation_status() {
+            Ok(InstallationStatus::FullyInstalled { .. }) => '+',
+            Ok(InstallationStatus::ConfigOnly { .. }) => '+',
+            Ok(InstallationStatus::BinaryOnly { .. }) => '-',
+            _ => ' ',
+        }
+    }
+
     fn empty_state_message(&self) -> &'static str {
         let Some(kind) = self.selected_harness() else {
             return "No harness selected";
@@ -452,6 +466,7 @@ fn render_harness_pane(frame: &mut Frame, app: &mut App, area: Rect) {
         .iter()
         .map(|kind| {
             let harness = Harness::new(*kind);
+            let indicator = app.harness_status_indicator(&harness);
             let installed = harness.is_installed();
             let style = if installed {
                 Style::default()
@@ -459,7 +474,7 @@ fn render_harness_pane(frame: &mut Frame, app: &mut App, area: Rect) {
                 Style::default().fg(Color::DarkGray)
             };
             let suffix = if installed { "" } else { " (not installed)" };
-            ListItem::new(format!("{}{}", harness.kind(), suffix)).style(style)
+            ListItem::new(format!("{} {}{}", indicator, harness.kind(), suffix)).style(style)
         })
         .collect();
 
@@ -595,6 +610,15 @@ fn render_help_modal(frame: &mut Frame, area: Rect) {
         Line::from("  d         Delete profile"),
         Line::from("  e         Edit profile"),
         Line::from("  r         Refresh"),
+        Line::from(""),
+        Line::from(vec![Span::styled(
+            "Harness Status",
+            Style::default().add_modifier(Modifier::BOLD),
+        )]),
+        Line::from("  *         Tracked (active profile)"),
+        Line::from("  +         Has config (not tracked)"),
+        Line::from("  -         Binary only (no config)"),
+        Line::from("            Not installed"),
         Line::from(""),
         Line::from(vec![Span::styled(
             "General",
