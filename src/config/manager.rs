@@ -10,6 +10,60 @@ use super::profile_name::ProfileName;
 use crate::error::{Error, Result};
 use crate::harness::HarnessConfig;
 
+fn strip_jsonc_comments(input: &str) -> String {
+    let mut result = String::with_capacity(input.len());
+    let mut chars = input.chars().peekable();
+    let mut in_string = false;
+    let mut escape_next = false;
+
+    while let Some(c) = chars.next() {
+        if escape_next {
+            result.push(c);
+            escape_next = false;
+            continue;
+        }
+
+        if c == '\\' && in_string {
+            result.push(c);
+            escape_next = true;
+            continue;
+        }
+
+        if c == '"' && !escape_next {
+            in_string = !in_string;
+            result.push(c);
+            continue;
+        }
+
+        if !in_string && c == '/' {
+            match chars.peek() {
+                Some('/') => {
+                    chars.next();
+                    while let Some(&ch) = chars.peek() {
+                        if ch == '\n' {
+                            break;
+                        }
+                        chars.next();
+                    }
+                }
+                Some('*') => {
+                    chars.next();
+                    while let Some(ch) = chars.next() {
+                        if ch == '*' && chars.peek() == Some(&'/') {
+                            chars.next();
+                            break;
+                        }
+                    }
+                }
+                _ => result.push(c),
+            }
+        } else {
+            result.push(c);
+        }
+    }
+    result
+}
+
 /// MCP server info with enabled status.
 #[derive(Debug, Clone, Default)]
 pub struct McpServerInfo {
@@ -192,26 +246,22 @@ impl ProfileManager {
             .unwrap_or(false);
 
         let mcp_servers = self.extract_mcp_servers(harness, &path)?;
+        let theme = self.extract_theme(harness, &path);
+        let model = self.extract_model(harness, &path);
 
         Ok(ProfileInfo {
             name: name.as_str().to_string(),
             harness_id,
             is_active,
             path,
-            mcp_servers: mcp_servers
-                .into_iter()
-                .map(|name| McpServerInfo {
-                    name,
-                    enabled: true,
-                })
-                .collect(),
+            mcp_servers,
             skills: ResourceSummary::default(),
             commands: ResourceSummary::default(),
             plugins: None,
             agents: None,
             rules_file: None,
-            theme: None,
-            model: None,
+            theme,
+            model,
             extraction_errors: Vec::new(),
         })
     }
@@ -220,7 +270,7 @@ impl ProfileManager {
         &self,
         harness: &dyn HarnessConfig,
         profile_path: &std::path::Path,
-    ) -> Result<Vec<String>> {
+    ) -> Result<Vec<McpServerInfo>> {
         let mcp_filename = match harness.mcp_filename() {
             Some(f) => f,
             None => return Ok(Vec::new()),
@@ -233,7 +283,78 @@ impl ProfileManager {
         }
 
         let content = std::fs::read_to_string(&profile_mcp_path)?;
-        harness.parse_mcp_servers(&content)
+        let servers = harness.parse_mcp_servers(&content)?;
+        Ok(servers
+            .into_iter()
+            .map(|(name, enabled)| McpServerInfo { name, enabled })
+            .collect())
+    }
+
+    fn extract_theme(
+        &self,
+        harness: &dyn HarnessConfig,
+        profile_path: &std::path::Path,
+    ) -> Option<String> {
+        if harness.id() != "opencode" {
+            return None;
+        }
+
+        let config_path = profile_path.join("opencode.jsonc");
+        if !config_path.exists() {
+            return None;
+        }
+
+        let content = std::fs::read_to_string(&config_path).ok()?;
+        let clean_json = strip_jsonc_comments(&content);
+        let parsed: serde_json::Value = serde_json::from_str(&clean_json).ok()?;
+        parsed
+            .get("theme")
+            .and_then(|v| v.as_str())
+            .map(String::from)
+    }
+
+    fn extract_model(
+        &self,
+        harness: &dyn HarnessConfig,
+        profile_path: &std::path::Path,
+    ) -> Option<String> {
+        match harness.id() {
+            "opencode" => self.extract_model_opencode(profile_path),
+            "claude-code" => self.extract_model_claude_code(profile_path),
+            "goose" => self.extract_model_goose(profile_path),
+            _ => None,
+        }
+    }
+
+    fn extract_model_opencode(&self, profile_path: &std::path::Path) -> Option<String> {
+        let config_path = profile_path.join("opencode.jsonc");
+        let content = std::fs::read_to_string(&config_path).ok()?;
+        let clean_json = strip_jsonc_comments(&content);
+        let parsed: serde_json::Value = serde_json::from_str(&clean_json).ok()?;
+        parsed
+            .get("model")
+            .and_then(|v| v.as_str())
+            .map(String::from)
+    }
+
+    fn extract_model_claude_code(&self, profile_path: &std::path::Path) -> Option<String> {
+        let config_path = profile_path.join("settings.json");
+        let content = std::fs::read_to_string(&config_path).ok()?;
+        let parsed: serde_json::Value = serde_json::from_str(&content).ok()?;
+        parsed
+            .get("model")
+            .and_then(|v| v.as_str())
+            .map(String::from)
+    }
+
+    fn extract_model_goose(&self, profile_path: &std::path::Path) -> Option<String> {
+        let config_path = profile_path.join("config.yaml");
+        let content = std::fs::read_to_string(&config_path).ok()?;
+        let parsed: serde_yaml::Value = serde_yaml::from_str(&content).ok()?;
+        parsed
+            .get("model")
+            .and_then(|v| v.as_str())
+            .map(String::from)
     }
 
     pub fn backups_dir(&self) -> PathBuf {
@@ -388,7 +509,7 @@ mod tests {
             None
         }
 
-        fn parse_mcp_servers(&self, _content: &str) -> Result<Vec<String>> {
+        fn parse_mcp_servers(&self, _content: &str) -> Result<Vec<(String, bool)>> {
             Ok(vec![])
         }
     }
