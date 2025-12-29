@@ -95,13 +95,61 @@ fn strip_trailing_commas(input: &str) -> String {
     result
 }
 
-/// MCP server info with enabled status.
+fn extract_mcp_from_opencode_config(profile_path: &std::path::Path) -> Result<Vec<McpServerInfo>> {
+    let config_path = profile_path.join("opencode.jsonc");
+    if !config_path.exists() {
+        return Ok(Vec::new());
+    }
+
+    let content = std::fs::read_to_string(&config_path)
+        .map_err(|e| Error::Config(format!("Failed to read opencode.jsonc: {}", e)))?;
+    let content = strip_jsonc_comments(&content);
+
+    let config: serde_json::Value = serde_json::from_str(&content)
+        .map_err(|e| Error::Config(format!("Failed to parse opencode.jsonc: {}", e)))?;
+
+    let mcp_obj = match config.get("mcp").and_then(|v| v.as_object()) {
+        Some(obj) => obj,
+        None => return Ok(Vec::new()),
+    };
+
+    let servers = mcp_obj
+        .iter()
+        .map(|(name, value)| {
+            let server_type = value.get("type").and_then(|v| v.as_str()).map(String::from);
+            let command = value
+                .get("command")
+                .and_then(|v| v.as_str())
+                .map(String::from);
+            let args = value.get("args").and_then(|v| v.as_array()).map(|arr| {
+                arr.iter()
+                    .filter_map(|a| a.as_str().map(String::from))
+                    .collect()
+            });
+            let url = value.get("url").and_then(|v| v.as_str()).map(String::from);
+            McpServerInfo {
+                name: name.clone(),
+                enabled: true,
+                server_type,
+                command,
+                args,
+                url,
+            }
+        })
+        .collect();
+
+    Ok(servers)
+}
+
+/// MCP server info with enabled status and connection details.
 #[derive(Debug, Clone, Default)]
 pub struct McpServerInfo {
-    /// Server name.
     pub name: String,
-    /// Whether the server is enabled.
     pub enabled: bool,
+    pub server_type: Option<String>,
+    pub command: Option<String>,
+    pub args: Option<Vec<String>>,
+    pub url: Option<String>,
 }
 
 /// Summary of directory-based resources (skills, commands, etc.).
@@ -499,6 +547,11 @@ impl ProfileManager {
         harness: &dyn HarnessConfig,
         profile_path: &std::path::Path,
     ) -> Result<Vec<McpServerInfo>> {
+        // Special case: OpenCode embeds MCP in main config under `mcp` key
+        if harness.id() == "opencode" {
+            return extract_mcp_from_opencode_config(profile_path);
+        }
+
         let mcp_filename = match harness.mcp_filename() {
             Some(f) => f,
             None => return Ok(Vec::new()),
@@ -514,7 +567,14 @@ impl ProfileManager {
         let servers = harness.parse_mcp_servers(&content, &mcp_filename)?;
         Ok(servers
             .into_iter()
-            .map(|(name, enabled)| McpServerInfo { name, enabled })
+            .map(|(name, enabled)| McpServerInfo {
+                name,
+                enabled,
+                server_type: None,
+                command: None,
+                args: None,
+                url: None,
+            })
             .collect())
     }
 

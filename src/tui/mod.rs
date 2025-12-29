@@ -850,6 +850,23 @@ fn render_profile_expanded(profile: &ProfileInfo) -> Vec<Line<'static>> {
                     } else {
                         ("✗", Color::Red)
                     };
+                    let detail = match (&server.server_type, &server.command, &server.url) {
+                        (Some(t), Some(cmd), _) => {
+                            let args_str = server
+                                .args
+                                .as_ref()
+                                .map(|a| a.join(" "))
+                                .unwrap_or_default();
+                            if args_str.is_empty() {
+                                format!(" ({t}): {cmd}")
+                            } else {
+                                format!(" ({t}): {cmd} {args_str}")
+                            }
+                        }
+                        (Some(t), None, Some(url)) => format!(" ({t}): {url}"),
+                        (Some(t), None, None) => format!(" ({t})"),
+                        _ => String::new(),
+                    };
                     lines.push(Line::from(vec![
                         Span::styled(
                             format!("  {} {} ", cont, sub_branch),
@@ -859,6 +876,7 @@ fn render_profile_expanded(profile: &ProfileInfo) -> Vec<Line<'static>> {
                             format!("{} {}", marker, server.name),
                             Style::default().fg(color),
                         ),
+                        Span::styled(detail, Style::default().fg(Color::DarkGray)),
                     ]));
                 }
             }

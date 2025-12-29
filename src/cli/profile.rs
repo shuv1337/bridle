@@ -111,12 +111,27 @@ pub fn show_profile(harness_name: &str, profile_name: &str) {
                     } else {
                         "\u{2717}"
                     };
-                    let suffix = if server.enabled {
-                        String::new()
-                    } else {
-                        " (disabled)".to_string()
+                    let disabled = if server.enabled { "" } else { " (disabled)" };
+
+                    let details = match (&server.server_type, &server.command, &server.url) {
+                        (Some(t), Some(cmd), _) => {
+                            let args_str = server
+                                .args
+                                .as_ref()
+                                .map(|a| a.join(" "))
+                                .unwrap_or_default();
+                            if args_str.is_empty() {
+                                format!(" ({t}): {cmd}")
+                            } else {
+                                format!(" ({t}): {cmd} {args_str}")
+                            }
+                        }
+                        (Some(t), None, Some(url)) => format!(" ({t}): {url}"),
+                        (Some(t), None, None) => format!(" ({t})"),
+                        _ => String::new(),
                     };
-                    println!("  {indicator} {}{suffix}", server.name);
+
+                    println!("  {indicator} {}{details}{disabled}", server.name);
                 }
             }
             println!();
