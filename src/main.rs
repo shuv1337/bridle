@@ -5,12 +5,16 @@ mod harness;
 mod tui;
 
 use clap::Parser;
+use cli::output::OutputFormat;
 use cli::{Commands, ConfigCommands, ProfileCommands};
 
 #[derive(Parser)]
 #[command(name = "bridle")]
 #[command(version, about = "Unified AI harness configuration manager")]
 struct Cli {
+    #[arg(long, short = 'o', default_value = "auto", global = true)]
+    output: OutputFormat,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -19,13 +23,16 @@ fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
 
     let cli = Cli::parse();
+    let format = cli.output.resolve();
 
     match cli.command {
-        Commands::Status => cli::status::display_status(),
+        Commands::Status => cli::status::display_status(format),
         Commands::Init => cli::init::run_init(),
         Commands::Profile(profile_cmd) => match profile_cmd {
-            ProfileCommands::List { harness } => cli::profile::list_profiles(&harness),
-            ProfileCommands::Show { harness, name } => cli::profile::show_profile(&harness, &name),
+            ProfileCommands::List { harness } => cli::profile::list_profiles(&harness, format),
+            ProfileCommands::Show { harness, name } => {
+                cli::profile::show_profile(&harness, &name, format)
+            }
             ProfileCommands::Create {
                 harness,
                 name,

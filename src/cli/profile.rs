@@ -1,9 +1,16 @@
-//! Profile management commands.
-
 use harness_locate::{Harness, HarnessKind};
+use serde::Serialize;
 
+use crate::cli::output::{ResolvedFormat, output, output_list};
 use crate::config::{BridleConfig, ProfileManager, ProfileName};
 use crate::harness::HarnessConfig;
+
+#[derive(Serialize)]
+struct ProfileListEntry {
+    name: String,
+    harness_id: String,
+    is_active: bool,
+}
 
 fn resolve_harness(name: &str) -> Option<Harness> {
     let kind = match name {
@@ -21,7 +28,7 @@ fn get_manager() -> Option<ProfileManager> {
     Some(ProfileManager::new(profiles_dir))
 }
 
-pub fn list_profiles(harness_name: &str) {
+pub fn list_profiles(harness_name: &str, format: ResolvedFormat) {
     let Some(harness) = resolve_harness(harness_name) else {
         eprintln!("Unknown harness: {harness_name}");
         eprintln!("Valid options: claude-code, opencode, goose, amp-code");
@@ -33,22 +40,41 @@ pub fn list_profiles(harness_name: &str) {
         return;
     };
 
+    let active_profile: Option<String> = BridleConfig::load()
+        .ok()
+        .and_then(|c| c.active_profile_for(harness.id()).map(|s| s.to_string()));
+
     match manager.list_profiles(&harness) {
         Ok(profiles) => {
-            if profiles.is_empty() {
-                println!("No profiles found for {}", harness.id());
-            } else {
-                println!("Profiles for {}:", harness.id());
-                for profile in profiles {
-                    println!("  {}", profile.as_str());
+            let entries: Vec<ProfileListEntry> = profiles
+                .iter()
+                .map(|p| ProfileListEntry {
+                    name: p.to_string(),
+                    harness_id: harness.id().to_string(),
+                    is_active: active_profile
+                        .as_ref()
+                        .map(|a| a == &p.to_string())
+                        .unwrap_or(false),
+                })
+                .collect();
+
+            output_list(&entries, format, |entries| {
+                if entries.is_empty() {
+                    println!("No profiles found for {}", harness.id());
+                } else {
+                    println!("Profiles for {}:", harness.id());
+                    for entry in entries {
+                        let active = if entry.is_active { " (active)" } else { "" };
+                        println!("  {}{}", entry.name, active);
+                    }
                 }
-            }
+            });
         }
         Err(e) => eprintln!("Error listing profiles: {e}"),
     }
 }
 
-pub fn show_profile(harness_name: &str, profile_name: &str) {
+pub fn show_profile(harness_name: &str, profile_name: &str, format: ResolvedFormat) {
     let Some(harness) = resolve_harness(harness_name) else {
         eprintln!("Unknown harness: {harness_name}");
         return;
@@ -66,116 +92,110 @@ pub fn show_profile(harness_name: &str, profile_name: &str) {
 
     match manager.show_profile(&harness, &name) {
         Ok(info) => {
-            println!("Profile: {}", info.name);
-            println!("Harness: {}", info.harness_id);
-            println!(
-                "Status: {}",
-                if info.is_active { "Active" } else { "Inactive" }
-            );
-            println!("Path: {}", info.path.display());
-
-            if info.is_active {
-                let marker_exists = harness
-                    .config_dir()
-                    .ok()
-                    .map(|dir| dir.join(format!("BRIDLE_PROFILE_{}", info.name)).exists())
-                    .unwrap_or(false);
-                if marker_exists {
-                    println!("Marker: BRIDLE_PROFILE_{}", info.name);
-                }
-            }
-            println!();
-
-            // Theme (OpenCode only)
-            match &info.theme {
-                Some(theme) => println!("Theme: {theme}"),
-                None if info.harness_id == "opencode" => println!("Theme: (not set)"),
-                None => println!("Theme: (not supported)"),
-            }
-
-            // Model
-            match &info.model {
-                Some(model) => println!("Model: {model}"),
-                None => println!("Model: (not set)"),
-            }
-            println!();
-
-            // MCP Servers
-            if info.mcp_servers.is_empty() {
-                println!("MCP Servers: (none)");
-            } else {
-                println!("MCP Servers ({}):", info.mcp_servers.len());
-                for server in &info.mcp_servers {
-                    let indicator = if server.enabled {
-                        "\u{2713}"
-                    } else {
-                        "\u{2717}"
-                    };
-                    let disabled = if server.enabled { "" } else { " (disabled)" };
-
-                    let details = match (&server.server_type, &server.command, &server.url) {
-                        (Some(t), Some(cmd), _) => {
-                            let args_str = server
-                                .args
-                                .as_ref()
-                                .map(|a| a.join(" "))
-                                .unwrap_or_default();
-                            if args_str.is_empty() {
-                                format!(" ({t}): {cmd}")
-                            } else {
-                                format!(" ({t}): {cmd} {args_str}")
-                            }
-                        }
-                        (Some(t), None, Some(url)) => format!(" ({t}): {url}"),
-                        (Some(t), None, None) => format!(" ({t})"),
-                        _ => String::new(),
-                    };
-
-                    println!("  {indicator} {}{details}{disabled}", server.name);
-                }
-            }
-            println!();
-
-            // Skills
-            print_resource_summary("Skills", &info.skills);
-
-            // Commands
-            print_resource_summary("Commands", &info.commands);
-
-            // Plugins (OpenCode only)
-            match &info.plugins {
-                Some(plugins) => print_resource_summary("Plugins", plugins),
-                None => println!("Plugins: (not supported)"),
-            }
-
-            // Agents (OpenCode only)
-            match &info.agents {
-                Some(agents) => print_resource_summary("Agents", agents),
-                None => println!("Agents: (not supported)"),
-            }
-
-            // Rules file
-            match &info.rules_file {
-                Some(path) => {
-                    let filename = path
-                        .file_name()
-                        .and_then(|n| n.to_str())
-                        .unwrap_or("(unknown)");
-                    println!("Rules: {filename}");
-                }
-                None => println!("Rules: (none)"),
-            }
-
-            // Extraction errors
-            if !info.extraction_errors.is_empty() {
-                println!();
-                println!("Errors:");
-                for err in &info.extraction_errors {
-                    println!("  \u{26a0} {err}");
-                }
-            }
+            output(&info, format, |info| print_profile_text(info, &harness));
         }
         Err(e) => eprintln!("Error showing profile: {e}"),
+    }
+}
+
+fn print_profile_text(info: &crate::config::ProfileInfo, harness: &harness_locate::Harness) {
+    println!("Profile: {}", info.name);
+    println!("Harness: {}", info.harness_id);
+    println!(
+        "Status: {}",
+        if info.is_active { "Active" } else { "Inactive" }
+    );
+    println!("Path: {}", info.path.display());
+
+    if info.is_active {
+        let marker_exists = harness
+            .config_dir()
+            .ok()
+            .map(|dir| dir.join(format!("BRIDLE_PROFILE_{}", info.name)).exists())
+            .unwrap_or(false);
+        if marker_exists {
+            println!("Marker: BRIDLE_PROFILE_{}", info.name);
+        }
+    }
+    println!();
+
+    match &info.theme {
+        Some(theme) => println!("Theme: {theme}"),
+        None if info.harness_id == "opencode" => println!("Theme: (not set)"),
+        None => println!("Theme: (not supported)"),
+    }
+
+    match &info.model {
+        Some(model) => println!("Model: {model}"),
+        None => println!("Model: (not set)"),
+    }
+    println!();
+
+    if info.mcp_servers.is_empty() {
+        println!("MCP Servers: (none)");
+    } else {
+        println!("MCP Servers ({}):", info.mcp_servers.len());
+        for server in &info.mcp_servers {
+            let indicator = if server.enabled {
+                "\u{2713}"
+            } else {
+                "\u{2717}"
+            };
+            let disabled = if server.enabled { "" } else { " (disabled)" };
+
+            let details = match (&server.server_type, &server.command, &server.url) {
+                (Some(t), Some(cmd), _) => {
+                    let args_str = server
+                        .args
+                        .as_ref()
+                        .map(|a| a.join(" "))
+                        .unwrap_or_default();
+                    if args_str.is_empty() {
+                        format!(" ({t}): {cmd}")
+                    } else {
+                        format!(" ({t}): {cmd} {args_str}")
+                    }
+                }
+                (Some(t), None, Some(url)) => format!(" ({t}): {url}"),
+                (Some(t), None, None) => format!(" ({t})"),
+                _ => String::new(),
+            };
+
+            println!("  {indicator} {}{details}{disabled}", server.name);
+        }
+    }
+    println!();
+
+    print_resource_summary("Skills", &info.skills);
+    print_resource_summary("Commands", &info.commands);
+
+    match &info.plugins {
+        Some(plugins) => print_resource_summary("Plugins", plugins),
+        None => println!("Plugins: (not supported)"),
+    }
+
+    match &info.agents {
+        Some(agents) => print_resource_summary("Agents", agents),
+        None => println!("Agents: (not supported)"),
+    }
+
+    match &info.rules_file {
+        Some(path) => {
+            let filename = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("(unknown)");
+            println!("Rules: {filename}");
+        }
+        None => println!("Rules: (none)"),
+    }
+
+    if !info.extraction_errors.is_empty() {
+        println!();
+        println!("Errors:");
+        for err in &info.extraction_errors {
+            println!("  \u{26a0} {err}");
+        }
     }
 }
 
