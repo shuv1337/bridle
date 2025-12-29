@@ -319,13 +319,79 @@ impl ProfileManager {
         Ok(())
     }
 
+    fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) -> Result<()> {
+        std::fs::create_dir_all(dst)?;
+
+        for entry in std::fs::read_dir(src)? {
+            let entry = entry?;
+            let src_path = entry.path();
+            let dst_path = dst.join(entry.file_name());
+
+            if entry.file_type()?.is_dir() {
+                Self::copy_dir_recursive(&src_path, &dst_path)?;
+            } else {
+                std::fs::copy(&src_path, &dst_path)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn copy_resource_directories(
+        harness: &Harness,
+        to_profile: bool,
+        profile_path: &std::path::Path,
+    ) -> Result<()> {
+        let resources = [
+            harness.agents(&Scope::Global),
+            harness.commands(&Scope::Global),
+            harness.skills(&Scope::Global),
+        ];
+
+        for resource_result in resources {
+            if let Ok(Some(dir)) = resource_result {
+                let subdir_name = dir
+                    .path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("resource");
+
+                let profile_subdir = profile_path.join(subdir_name);
+
+                let (src, dst) = if to_profile {
+                    (&dir.path, &profile_subdir)
+                } else {
+                    (&profile_subdir, &dir.path)
+                };
+
+                if src.exists() && src.is_dir() {
+                    Self::copy_dir_recursive(src, dst)?;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     pub fn create_from_current(
         &self,
         harness: &dyn HarnessConfig,
         name: &ProfileName,
     ) -> Result<PathBuf> {
+        self.create_from_current_with_resources(harness, None, name)
+    }
+
+    pub fn create_from_current_with_resources(
+        &self,
+        harness: &dyn HarnessConfig,
+        harness_for_resources: Option<&Harness>,
+        name: &ProfileName,
+    ) -> Result<PathBuf> {
         let profile_path = self.create_profile(harness, name)?;
         Self::copy_config_files(harness, true, &profile_path)?;
+        if let Some(h) = harness_for_resources {
+            Self::copy_resource_directories(h, true, &profile_path)?;
+        }
         Ok(profile_path)
     }
 
@@ -865,7 +931,12 @@ impl ProfileManager {
         Ok(backup_path)
     }
 
-    fn save_to_profile(&self, harness: &dyn HarnessConfig, name: &ProfileName) -> Result<()> {
+    fn save_to_profile(
+        &self,
+        harness: &dyn HarnessConfig,
+        harness_for_resources: Option<&Harness>,
+        name: &ProfileName,
+    ) -> Result<()> {
         let profile_path = self.profile_path(harness, name);
         if !profile_path.exists() {
             return Ok(());
@@ -883,18 +954,33 @@ impl ProfileManager {
 
         for entry in std::fs::read_dir(&profile_path)? {
             let entry = entry?;
-            if entry.file_type()?.is_file() {
+            let file_type = entry.file_type()?;
+            if file_type.is_file() {
                 std::fs::remove_file(entry.path())?;
+            } else if file_type.is_dir() {
+                std::fs::remove_dir_all(entry.path())?;
             }
         }
 
         Self::copy_config_files(harness, true, &profile_path)?;
+        if let Some(h) = harness_for_resources {
+            Self::copy_resource_directories(h, true, &profile_path)?;
+        }
         Ok(())
     }
 
     pub fn switch_profile(
         &self,
         harness: &dyn HarnessConfig,
+        name: &ProfileName,
+    ) -> Result<PathBuf> {
+        self.switch_profile_with_resources(harness, None, name)
+    }
+
+    pub fn switch_profile_with_resources(
+        &self,
+        harness: &dyn HarnessConfig,
+        harness_for_resources: Option<&Harness>,
         name: &ProfileName,
     ) -> Result<PathBuf> {
         let profile_path = self.profile_path(harness, name);
@@ -909,7 +995,7 @@ impl ProfileManager {
             && let Ok(active_profile) = ProfileName::new(active_name)
             && active_profile.as_str() != name.as_str()
         {
-            let _ = self.save_to_profile(harness, &active_profile);
+            let _ = self.save_to_profile(harness, harness_for_resources, &active_profile);
         }
 
         let target_dir = harness.config_dir()?;
@@ -942,6 +1028,10 @@ impl ProfileManager {
             std::fs::remove_dir_all(&target_dir)?;
         }
         std::fs::rename(&temp_dir, &target_dir)?;
+
+        if let Some(h) = harness_for_resources {
+            Self::copy_resource_directories(h, false, &profile_path)?;
+        }
 
         if let Some(ref mcp_name) = mcp_filename
             && let Some(ref mcp_dest) = mcp_path

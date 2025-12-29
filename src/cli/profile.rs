@@ -216,7 +216,7 @@ pub fn create_profile_from_current(harness_name: &str, profile_name: &str) {
         return;
     };
 
-    match manager.create_from_current(&harness, &name) {
+    match manager.create_from_current_with_resources(&harness, Some(&harness), &name) {
         Ok(path) => {
             println!("Created profile from current config: {}", name.as_str());
             println!("Path: {}", path.display());
@@ -371,7 +371,7 @@ pub fn switch_profile(harness_name: &str, profile_name: &str) {
         }
     }
 
-    match manager.switch_profile(&harness, &name) {
+    match manager.switch_profile_with_resources(&harness, Some(&harness), &name) {
         Ok(_) => {
             println!("Switched to profile: {}", name.as_str());
             println!("Harness: {harness_id}");
