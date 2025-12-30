@@ -127,6 +127,43 @@ ls ~/.config/opencode/agent/
 
 ---
 
+## Issue 3b: OpenCode Commands are Both Config-Based and Directory-Based
+
+**Bead**: (same as Issue 3)  
+**Severity**: Medium  
+**Discovered**: 2025-12-29
+
+### Problem
+
+Similar to agents, OpenCode supports TWO types of commands:
+
+1. **Config-based commands**: Defined in `opencode.jsonc` under `command` object
+   ```json
+   "command": {
+     "test": { "template": "Run tests", "agent": "build" },
+     "review": { "template": "Review code", "agent": "oracle" }
+   }
+   ```
+
+2. **Directory-based commands**: Custom slash commands at `~/.config/opencode/command/*.md`
+
+harness-locate's `commands(&Scope::Global)` only returns the directory path.
+
+### Impact
+
+- Config-based commands (commonly used) are invisible to consumers
+- bridle had to add custom parsing of `command` object from opencode.jsonc
+
+### Workaround Applied in bridle
+
+bridle now parses the `command` object keys from opencode.jsonc and merges with directory-based commands. This duplicates parsing logic that harness-locate should ideally provide.
+
+### Proposed Solution
+
+Same as Issue 3 - harness-locate should expose config-based commands, or document that only directory-based commands are returned.
+
+---
+
 ## Issue 4: No Profile-Scoped Directory Resolution
 
 **Bead**: bridle-98z (related)  

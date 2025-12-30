@@ -392,6 +392,9 @@ impl ProfileManager {
         to_profile: bool,
         profile_path: &std::path::Path,
     ) -> Result<()> {
+        let config_dir = harness.config_dir()?;
+        let mut copied_dirs: std::collections::HashSet<String> = std::collections::HashSet::new();
+
         let resources = [
             harness.agents(&Scope::Global),
             harness.commands(&Scope::Global),
@@ -407,16 +410,43 @@ impl ProfileManager {
                     .unwrap_or("resource");
 
                 let profile_subdir = profile_path.join(subdir_name);
+                let global_subdir = config_dir.join(subdir_name);
 
                 let (src, dst) = if to_profile {
-                    (&dir.path, &profile_subdir)
+                    (&global_subdir, &profile_subdir)
                 } else {
-                    (&profile_subdir, &dir.path)
+                    (&profile_subdir, &global_subdir)
                 };
 
                 if src.exists() && src.is_dir() {
                     Self::copy_dir_recursive(src, dst)?;
+                    copied_dirs.insert(subdir_name.to_string());
                 }
+            }
+        }
+
+        // Fallback: copy common resource directories that harness-locate doesn't know about
+        // (e.g., Goose commands/skills, AMP Code resources)
+        let fallback_dirs = [
+            "agent", "agents", "command", "commands", "skill", "skills", "recipes",
+        ];
+
+        for subdir_name in fallback_dirs {
+            if copied_dirs.contains(subdir_name) {
+                continue;
+            }
+
+            let profile_subdir = profile_path.join(subdir_name);
+            let global_subdir = config_dir.join(subdir_name);
+
+            let (src, dst) = if to_profile {
+                (&global_subdir, &profile_subdir)
+            } else {
+                (&profile_subdir, &global_subdir)
+            };
+
+            if src.exists() && src.is_dir() {
+                Self::copy_dir_recursive(src, dst)?;
             }
         }
 
@@ -1251,9 +1281,10 @@ impl ProfileManager {
             let file_type = entry.file_type()?;
             if file_type.is_file() {
                 std::fs::remove_file(entry.path())?;
-            } else if file_type.is_dir() {
-                std::fs::remove_dir_all(entry.path())?;
             }
+            // Don't delete directories - they may contain profile-only resources
+            // (e.g., skills/ that only exist in profile, not global)
+            // copy_resource_directories will handle syncing resource dirs
         }
 
         Self::copy_config_files(harness, true, &profile_path)?;
