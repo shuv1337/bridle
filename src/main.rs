@@ -1,5 +1,6 @@
 mod cli;
 mod config;
+mod display;
 mod error;
 mod harness;
 mod tui;

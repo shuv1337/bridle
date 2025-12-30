@@ -3,6 +3,7 @@ use serde::Serialize;
 
 use crate::cli::output::{ResolvedFormat, output, output_list};
 use crate::config::{BridleConfig, ProfileManager, ProfileName};
+use crate::display::{ProfileNode, SectionKind, nodes_to_text, profile_to_nodes};
 use crate::harness::HarnessConfig;
 
 #[derive(Serialize)]
@@ -99,13 +100,7 @@ pub fn show_profile(harness_name: &str, profile_name: &str, format: ResolvedForm
 }
 
 fn print_profile_text(info: &crate::config::ProfileInfo, harness: &harness_locate::Harness) {
-    println!("Profile: {}", info.name);
-    println!("Harness: {}", info.harness_id);
-    println!(
-        "Status: {}",
-        if info.is_active { "Active" } else { "Inactive" }
-    );
-    println!("Path: {}", info.path.display());
+    let mut nodes = profile_to_nodes(info);
 
     if info.is_active {
         let marker_exists = harness
@@ -113,101 +108,15 @@ fn print_profile_text(info: &crate::config::ProfileInfo, harness: &harness_locat
             .ok()
             .map(|dir| dir.join(format!("BRIDLE_PROFILE_{}", info.name)).exists())
             .unwrap_or(false);
-        if marker_exists {
-            println!("Marker: BRIDLE_PROFILE_{}", info.name);
+        if marker_exists && let Some(header) = nodes.first_mut() {
+            header.children.push(
+                ProfileNode::new(SectionKind::Field, "Marker")
+                    .with_text(format!("BRIDLE_PROFILE_{}", info.name)),
+            );
         }
     }
-    println!();
 
-    match &info.theme {
-        Some(theme) => println!("Theme: {theme}"),
-        None if info.harness_id == "opencode" => println!("Theme: (not set)"),
-        None => println!("Theme: (not supported)"),
-    }
-
-    match &info.model {
-        Some(model) => println!("Model: {model}"),
-        None => println!("Model: (not set)"),
-    }
-    println!();
-
-    if info.mcp_servers.is_empty() {
-        println!("MCP Servers: (none)");
-    } else {
-        println!("MCP Servers ({}):", info.mcp_servers.len());
-        for server in &info.mcp_servers {
-            let indicator = if server.enabled {
-                "\u{2713}"
-            } else {
-                "\u{2717}"
-            };
-            let disabled = if server.enabled { "" } else { " (disabled)" };
-
-            let details = match (&server.server_type, &server.command, &server.url) {
-                (Some(t), Some(cmd), _) => {
-                    let args_str = server
-                        .args
-                        .as_ref()
-                        .map(|a| a.join(" "))
-                        .unwrap_or_default();
-                    if args_str.is_empty() {
-                        format!(" ({t}): {cmd}")
-                    } else {
-                        format!(" ({t}): {cmd} {args_str}")
-                    }
-                }
-                (Some(t), None, Some(url)) => format!(" ({t}): {url}"),
-                (Some(t), None, None) => format!(" ({t})"),
-                _ => String::new(),
-            };
-
-            println!("  {indicator} {}{details}{disabled}", server.name);
-        }
-    }
-    println!();
-
-    print_resource_summary("Skills", &info.skills);
-    print_resource_summary("Commands", &info.commands);
-
-    match &info.plugins {
-        Some(plugins) => print_resource_summary("Plugins", plugins),
-        None => println!("Plugins: (not supported)"),
-    }
-
-    match &info.agents {
-        Some(agents) => print_resource_summary("Agents", agents),
-        None => println!("Agents: (not supported)"),
-    }
-
-    match &info.rules_file {
-        Some(path) => {
-            let filename = path
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or("(unknown)");
-            println!("Rules: {filename}");
-        }
-        None => println!("Rules: (none)"),
-    }
-
-    if !info.extraction_errors.is_empty() {
-        println!();
-        println!("Errors:");
-        for err in &info.extraction_errors {
-            println!("  \u{26a0} {err}");
-        }
-    }
-}
-
-fn print_resource_summary(label: &str, summary: &crate::config::ResourceSummary) {
-    if !summary.directory_exists {
-        println!("{label}: (directory not found)");
-    } else if summary.items.is_empty() {
-        println!("{label}: (none)");
-    } else {
-        println!("{label} ({}):", summary.items.len());
-        println!("  {}", summary.items.join(", "));
-    }
+    print!("{}", nodes_to_text(&nodes));
 }
 
 pub fn create_profile(harness_name: &str, profile_name: &str) {
