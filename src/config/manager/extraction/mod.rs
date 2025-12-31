@@ -62,6 +62,10 @@ pub fn extract_mcp_servers(
         return extract_mcp_from_opencode_config(profile_path);
     }
 
+    if harness.id() == "amp-code" {
+        return extract_mcp_from_ampcode_config(profile_path);
+    }
+
     let mcp_filename = match harness.mcp_filename() {
         Some(f) => f,
         None => return Ok(Vec::new()),
@@ -86,6 +90,50 @@ pub fn extract_mcp_servers(
             url: None,
         })
         .collect())
+}
+
+fn extract_mcp_from_ampcode_config(profile_path: &Path) -> Result<Vec<McpServerInfo>> {
+    let config_path = profile_path.join("settings.json");
+    if !config_path.exists() {
+        return Ok(Vec::new());
+    }
+
+    let content = std::fs::read_to_string(&config_path)
+        .map_err(|e| Error::Config(format!("Failed to read settings.json: {}", e)))?;
+
+    let config: serde_json::Value = serde_json::from_str(&content)
+        .map_err(|e| Error::Config(format!("Failed to parse settings.json: {}", e)))?;
+
+    let mcp_obj = match config.get("amp.mcpServers").and_then(|v| v.as_object()) {
+        Some(obj) => obj,
+        None => return Ok(Vec::new()),
+    };
+
+    let servers = mcp_obj
+        .iter()
+        .map(|(name, value)| {
+            let command = value
+                .get("command")
+                .and_then(|v| v.as_str())
+                .map(String::from);
+            let args = value.get("args").and_then(|v| v.as_array()).map(|arr| {
+                arr.iter()
+                    .filter_map(|a| a.as_str().map(String::from))
+                    .collect()
+            });
+            let url = value.get("url").and_then(|v| v.as_str()).map(String::from);
+            McpServerInfo {
+                name: name.clone(),
+                enabled: true,
+                server_type: Some("stdio".to_string()),
+                command,
+                args,
+                url,
+            }
+        })
+        .collect();
+
+    Ok(servers)
 }
 
 pub fn extract_theme(harness: &dyn HarnessConfig, profile_path: &Path) -> Option<String> {
@@ -204,6 +252,10 @@ fn extract_model_ampcode(profile_path: &Path) -> Option<String> {
 }
 
 pub fn extract_skills(harness: &Harness, profile_path: &Path) -> (ResourceSummary, Option<String>) {
+    if harness.id() == "amp-code" {
+        return extract_ampcode_skills(profile_path);
+    }
+
     match harness.skills(&Scope::Global) {
         Ok(Some(dir)) => {
             let subdir = dir
@@ -233,12 +285,51 @@ pub fn extract_skills(harness: &Harness, profile_path: &Path) -> (ResourceSummar
     }
 }
 
+fn extract_ampcode_skills(profile_path: &Path) -> (ResourceSummary, Option<String>) {
+    let skills_dir = profile_path.join("skills");
+    if !skills_dir.exists() {
+        return (ResourceSummary::default(), None);
+    }
+
+    let entries = match std::fs::read_dir(&skills_dir) {
+        Ok(e) => e,
+        Err(e) => {
+            return (
+                ResourceSummary {
+                    items: Vec::new(),
+                    directory_exists: true,
+                },
+                Some(format!("skills: {}", e)),
+            );
+        }
+    };
+
+    let items: Vec<String> = entries
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
+        .filter(|e| e.path().join("SKILL.md").exists())
+        .filter_map(|e| e.file_name().to_str().map(String::from))
+        .collect();
+
+    (
+        ResourceSummary {
+            items,
+            directory_exists: true,
+        },
+        None,
+    )
+}
+
 pub fn extract_commands(
     harness: &Harness,
     profile_path: &Path,
 ) -> (ResourceSummary, Option<String>) {
     if harness.id() == "goose" {
         return extract_goose_recipes(profile_path);
+    }
+
+    if harness.id() == "amp-code" {
+        return extract_ampcode_commands(profile_path);
     }
 
     let dir_result = match harness.commands(&Scope::Global) {
@@ -341,6 +432,45 @@ fn extract_goose_recipes(profile_path: &Path) -> (ResourceSummary, Option<String
                     Some("yaml") | Some("yml") | Some("json") | Some("md")
                 )
         })
+        .filter_map(|e| {
+            e.path()
+                .file_stem()
+                .and_then(|n| n.to_str())
+                .map(String::from)
+        })
+        .collect();
+
+    (
+        ResourceSummary {
+            items,
+            directory_exists: true,
+        },
+        None,
+    )
+}
+
+fn extract_ampcode_commands(profile_path: &Path) -> (ResourceSummary, Option<String>) {
+    let commands_dir = profile_path.join("commands");
+    if !commands_dir.exists() {
+        return (ResourceSummary::default(), None);
+    }
+
+    let entries = match std::fs::read_dir(&commands_dir) {
+        Ok(e) => e,
+        Err(e) => {
+            return (
+                ResourceSummary {
+                    items: Vec::new(),
+                    directory_exists: true,
+                },
+                Some(format!("commands: {}", e)),
+            );
+        }
+    };
+
+    let items: Vec<String> = entries
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().map(|t| t.is_file()).unwrap_or(false))
         .filter_map(|e| {
             e.path()
                 .file_stem()
