@@ -89,6 +89,7 @@ struct App {
     input_buffer: String,
     needs_full_redraw: bool,
     detail_scroll: u16,
+    detail_content_height: u16,
     harness_area: Option<Rect>,
     profile_area: Option<Rect>,
     detail_area: Option<Rect>,
@@ -115,7 +116,7 @@ impl App {
         let mut app = Self {
             running: true,
             view_mode: ViewMode::default(),
-            active_pane: Pane::Harnesses,
+            active_pane: Pane::Profiles,
             harnesses,
             harness_state,
             profiles: Vec::new(),
@@ -130,6 +131,7 @@ impl App {
             input_buffer: String::new(),
             needs_full_redraw: false,
             detail_scroll: 0,
+            detail_content_height: 0,
             harness_area: None,
             profile_area: None,
             detail_area: None,
@@ -195,6 +197,7 @@ impl App {
             if !self.profiles.is_empty() {
                 self.profile_state.select(Some(0));
                 self.profile_table_state.select(Some(0));
+                self.update_detail_content_height();
             }
         }
     }
@@ -234,6 +237,7 @@ impl App {
         self.profile_state.select(Some(i));
         self.profile_table_state.select(Some(i));
         self.detail_scroll = 0;
+        self.update_detail_content_height();
     }
 
     fn prev_profile(&mut self) {
@@ -253,6 +257,17 @@ impl App {
         self.profile_state.select(Some(i));
         self.profile_table_state.select(Some(i));
         self.detail_scroll = 0;
+        self.update_detail_content_height();
+    }
+
+    fn update_detail_content_height(&mut self) {
+        self.detail_content_height = if let Some(idx) = self.profile_state.selected() {
+            let profile = &self.profiles[idx];
+            let lines = widgets::render_profile_details(profile);
+            lines.len() as u16
+        } else {
+            0
+        };
     }
 
     fn scroll_detail_up(&mut self) {
@@ -260,7 +275,7 @@ impl App {
     }
 
     fn scroll_detail_down(&mut self) {
-        if self.detail_scroll < 1000 {
+        if self.detail_scroll < self.detail_content_height {
             self.detail_scroll = self.detail_scroll.saturating_add(1);
         }
     }

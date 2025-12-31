@@ -8,6 +8,11 @@ use ratatui::{
 
 use crate::config::ProfileInfo;
 
+pub fn render_profile_details(profile: &ProfileInfo) -> Vec<Line<'static>> {
+    let nodes = crate::display::profile_to_nodes(profile);
+    crate::display::nodes_to_lines(&nodes)
+}
+
 pub struct DetailPane<'a> {
     profile: Option<&'a ProfileInfo>,
     is_focused: bool,
@@ -32,11 +37,6 @@ impl<'a> DetailPane<'a> {
         self.scroll_offset = offset;
         self
     }
-
-    fn render_profile_details(profile: &ProfileInfo) -> Vec<Line<'static>> {
-        let nodes = crate::display::profile_to_nodes(profile);
-        crate::display::nodes_to_lines(&nodes)
-    }
 }
 
 impl Widget for DetailPane<'_> {
@@ -53,7 +53,7 @@ impl Widget for DetailPane<'_> {
             .border_style(border_style);
 
         let content = match self.profile {
-            Some(profile) => Self::render_profile_details(profile),
+            Some(profile) => render_profile_details(profile),
             None => vec![Line::styled(
                 "Select a profile to view details",
                 Style::default().fg(Color::DarkGray),
