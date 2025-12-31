@@ -275,7 +275,12 @@ impl App {
     }
 
     fn scroll_detail_down(&mut self) {
-        if self.detail_scroll < self.detail_content_height {
+        let viewport_height = self
+            .detail_area
+            .map(|a| a.height.saturating_sub(2))
+            .unwrap_or(10);
+        let max_scroll = self.detail_content_height.saturating_sub(viewport_height);
+        if self.detail_scroll < max_scroll {
             self.detail_scroll = self.detail_scroll.saturating_add(1);
         }
     }
