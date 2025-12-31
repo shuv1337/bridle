@@ -40,7 +40,6 @@ pub struct HarnessTabs<'a> {
     harnesses: &'a [HarnessKind],
     selected: usize,
     statuses: Vec<HarnessStatus>,
-    focused: bool,
 }
 
 impl<'a> HarnessTabs<'a> {
@@ -62,13 +61,7 @@ impl<'a> HarnessTabs<'a> {
             harnesses,
             selected,
             statuses,
-            focused: false,
         }
-    }
-
-    pub fn focused(mut self, focused: bool) -> Self {
-        self.focused = focused;
-        self
     }
 
     pub fn with_active_indicator(mut self, harness_id: &str) -> Self {
@@ -99,11 +92,7 @@ impl Widget for HarnessTabs<'_> {
             })
             .collect();
 
-        let border_style = if self.focused {
-            Style::default().fg(Color::Cyan)
-        } else {
-            Style::default().fg(Color::DarkGray)
-        };
+        let border_style = Style::default().fg(Color::DarkGray);
 
         let tabs = Tabs::new(titles)
             .block(

@@ -271,7 +271,6 @@ impl App {
         match event.kind {
             MouseEventKind::Down(_) => {
                 if self.harness_area.is_some_and(|a| a.contains(pos)) {
-                    self.active_pane = Pane::Harnesses;
                     let area = self.harness_area.unwrap();
 
                     if self.view_mode == ViewMode::Dashboard {
@@ -479,9 +478,8 @@ impl App {
             }
             KeyCode::Tab => {
                 self.active_pane = match self.active_pane {
-                    Pane::Harnesses => Pane::Profiles,
-                    Pane::Profiles => Pane::Details,
-                    Pane::Details => Pane::Harnesses,
+                    Pane::Harnesses | Pane::Profiles => Pane::Details,
+                    Pane::Details => Pane::Profiles,
                 };
             }
             KeyCode::Up | KeyCode::Char('k') => match self.view_mode {
@@ -827,8 +825,7 @@ fn render_detail_pane(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_harness_tabs(frame: &mut Frame, app: &App, area: Rect) {
-    let mut tabs = HarnessTabs::new(&app.harnesses, app.harness_state.selected().unwrap_or(0))
-        .focused(app.active_pane == Pane::Harnesses);
+    let mut tabs = HarnessTabs::new(&app.harnesses, app.harness_state.selected().unwrap_or(0));
 
     for kind in &app.harnesses {
         let harness = Harness::new(*kind);
