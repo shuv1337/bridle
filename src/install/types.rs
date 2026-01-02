@@ -29,6 +29,24 @@ pub struct McpInfo {
     pub env: std::collections::HashMap<String, String>,
 }
 
+/// Information about a discovered agent
+#[derive(Debug, Clone)]
+pub struct AgentInfo {
+    pub name: String,
+    pub description: Option<String>,
+    pub path: String,
+    pub content: String,
+}
+
+/// Information about a discovered command
+#[derive(Debug, Clone)]
+pub struct CommandInfo {
+    pub name: String,
+    pub description: Option<String>,
+    pub path: String,
+    pub content: String,
+}
+
 /// Target harness + profile for installation
 #[derive(Debug, Clone, Serialize)]
 pub struct InstallTarget {
@@ -51,6 +69,10 @@ pub struct DiscoveryResult {
     pub skills: Vec<SkillInfo>,
     /// Discovered MCP servers
     pub mcp_servers: Vec<McpInfo>,
+    /// Discovered agents
+    pub agents: Vec<AgentInfo>,
+    /// Discovered commands
+    pub commands: Vec<CommandInfo>,
     /// Source repository metadata
     pub source: SourceInfo,
 }

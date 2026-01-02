@@ -5,7 +5,7 @@
 use skills_locate::{extract_file, fetch_bytes, list_files, parse_skill_descriptor, GitHubRef};
 use thiserror::Error;
 
-use super::types::{DiscoveryResult, McpInfo, SkillInfo, SourceInfo};
+use super::types::{AgentInfo, CommandInfo, DiscoveryResult, McpInfo, SkillInfo, SourceInfo};
 
 #[derive(Debug, Error)]
 pub enum DiscoveryError {
@@ -66,13 +66,53 @@ pub fn discover_skills(url: &str) -> Result<DiscoveryResult, DiscoveryError> {
         mcp_servers.extend(parse_mcp_json(&content));
     }
 
-    if skills.is_empty() && mcp_servers.is_empty() {
+    let agent_paths = list_files(&zip_bytes, "AGENT.md").map_err(DiscoveryError::FetchError)?;
+
+    let mut agents = Vec::new();
+    for path in agent_paths {
+        let content = match extract_file(&zip_bytes, &path) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+
+        if let Some(agent) = parse_agent_frontmatter(&content) {
+            agents.push(AgentInfo {
+                name: agent.0,
+                description: agent.1,
+                path: normalize_archive_path(&path, &github_ref),
+                content,
+            });
+        }
+    }
+
+    let command_paths = list_files(&zip_bytes, "COMMAND.md").map_err(DiscoveryError::FetchError)?;
+
+    let mut commands = Vec::new();
+    for path in command_paths {
+        let content = match extract_file(&zip_bytes, &path) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+
+        if let Some(cmd) = parse_command_frontmatter(&content) {
+            commands.push(CommandInfo {
+                name: cmd.0,
+                description: cmd.1,
+                path: normalize_archive_path(&path, &github_ref),
+                content,
+            });
+        }
+    }
+
+    if skills.is_empty() && mcp_servers.is_empty() && agents.is_empty() && commands.is_empty() {
         return Err(DiscoveryError::NoSkillsFound);
     }
 
     Ok(DiscoveryResult {
         skills,
         mcp_servers,
+        agents,
+        commands,
         source,
     })
 }
@@ -145,6 +185,33 @@ fn parse_mcp_json(content: &str) -> Vec<McpInfo> {
             env,
         }],
     }
+}
+
+fn parse_agent_frontmatter(content: &str) -> Option<(String, Option<String>)> {
+    parse_yaml_frontmatter(content)
+}
+
+fn parse_command_frontmatter(content: &str) -> Option<(String, Option<String>)> {
+    parse_yaml_frontmatter(content)
+}
+
+fn parse_yaml_frontmatter(content: &str) -> Option<(String, Option<String>)> {
+    let content = content.trim();
+    if !content.starts_with("---") {
+        return None;
+    }
+
+    let end = content[3..].find("---")?;
+    let yaml_content = &content[3..3 + end];
+
+    #[derive(serde::Deserialize)]
+    struct Frontmatter {
+        name: String,
+        description: Option<String>,
+    }
+
+    let fm: Frontmatter = serde_yaml::from_str(yaml_content).ok()?;
+    Some((fm.name, fm.description))
 }
 
 fn normalize_archive_path(archive_path: &str, github_ref: &GitHubRef) -> String {

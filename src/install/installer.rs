@@ -8,8 +8,8 @@ use thiserror::Error;
 use harness_locate::{Harness, HarnessKind, Scope};
 
 use super::types::{
-    InstallFailure, InstallOptions, InstallReport, InstallSkip, InstallSuccess, InstallTarget,
-    SkillInfo, SkipReason,
+    AgentInfo, CommandInfo, InstallFailure, InstallOptions, InstallReport, InstallSkip,
+    InstallSuccess, InstallTarget, SkillInfo, SkipReason,
 };
 use crate::config::BridleConfig;
 use crate::harness::HarnessConfig;
@@ -28,11 +28,11 @@ pub enum InstallError {
     #[error("Harness not found: {0}")]
     HarnessNotFound(String),
 
-    #[error("Invalid skill name: {0}")]
-    InvalidSkillName(String),
+    #[error("Invalid component name: {0}")]
+    InvalidComponentName(String),
 }
 
-fn validate_skill_name(name: &str) -> Result<(), InstallError> {
+fn validate_component_name(name: &str) -> Result<(), InstallError> {
     if name.is_empty()
         || name.contains('/')
         || name.contains('\\')
@@ -40,7 +40,7 @@ fn validate_skill_name(name: &str) -> Result<(), InstallError> {
         || name == ".."
         || name.contains('\0')
     {
-        return Err(InstallError::InvalidSkillName(name.to_string()));
+        return Err(InstallError::InvalidComponentName(name.to_string()));
     }
     Ok(())
 }
@@ -74,7 +74,7 @@ fn install_skill_to_dir(
     options: &InstallOptions,
     profiles_dir: &std::path::Path,
 ) -> InstallResult {
-    validate_skill_name(&skill.name)?;
+    validate_component_name(&skill.name)?;
 
     let profile_dir = profiles_dir
         .join(&target.harness)
@@ -157,6 +157,96 @@ pub enum InstallOutcome {
 }
 
 pub type InstallResult = Result<InstallOutcome, InstallError>;
+
+pub fn install_agent(
+    agent: &AgentInfo,
+    target: &InstallTarget,
+    options: &InstallOptions,
+) -> InstallResult {
+    let profiles_dir = BridleConfig::profiles_dir().map_err(|_| InstallError::ProfileNotFound {
+        harness: target.harness.clone(),
+        profile: target.profile.as_str().to_string(),
+    })?;
+
+    validate_component_name(&agent.name)?;
+
+    let profile_dir = profiles_dir
+        .join(&target.harness)
+        .join(target.profile.as_str());
+
+    if !profile_dir.exists() {
+        return Err(InstallError::ProfileNotFound {
+            harness: target.harness.clone(),
+            profile: target.profile.as_str().to_string(),
+        });
+    }
+
+    let agent_dir = profile_dir.join("agents").join(&agent.name);
+    let agent_path = agent_dir.join("AGENT.md");
+
+    if agent_path.exists() && !options.force {
+        return Ok(InstallOutcome::Skipped(InstallSkip {
+            skill: agent.name.clone(),
+            target: target.clone(),
+            reason: SkipReason::AlreadyExists,
+        }));
+    }
+
+    fs::create_dir_all(&agent_dir).map_err(InstallError::CreateDir)?;
+    fs::write(&agent_path, &agent.content).map_err(InstallError::WriteFile)?;
+
+    Ok(InstallOutcome::Installed(InstallSuccess {
+        skill: agent.name.clone(),
+        target: target.clone(),
+        profile_path: agent_path,
+        harness_path: None,
+    }))
+}
+
+pub fn install_command(
+    command: &CommandInfo,
+    target: &InstallTarget,
+    options: &InstallOptions,
+) -> InstallResult {
+    let profiles_dir = BridleConfig::profiles_dir().map_err(|_| InstallError::ProfileNotFound {
+        harness: target.harness.clone(),
+        profile: target.profile.as_str().to_string(),
+    })?;
+
+    validate_component_name(&command.name)?;
+
+    let profile_dir = profiles_dir
+        .join(&target.harness)
+        .join(target.profile.as_str());
+
+    if !profile_dir.exists() {
+        return Err(InstallError::ProfileNotFound {
+            harness: target.harness.clone(),
+            profile: target.profile.as_str().to_string(),
+        });
+    }
+
+    let command_dir = profile_dir.join("commands").join(&command.name);
+    let command_path = command_dir.join("COMMAND.md");
+
+    if command_path.exists() && !options.force {
+        return Ok(InstallOutcome::Skipped(InstallSkip {
+            skill: command.name.clone(),
+            target: target.clone(),
+            reason: SkipReason::AlreadyExists,
+        }));
+    }
+
+    fs::create_dir_all(&command_dir).map_err(InstallError::CreateDir)?;
+    fs::write(&command_path, &command.content).map_err(InstallError::WriteFile)?;
+
+    Ok(InstallOutcome::Installed(InstallSuccess {
+        skill: command.name.clone(),
+        target: target.clone(),
+        profile_path: command_path,
+        harness_path: None,
+    }))
+}
 
 pub fn install_skills(
     skills: &[SkillInfo],
@@ -290,8 +380,8 @@ mod tests {
             let result =
                 install_skill_to_dir(&skill, &target, &InstallOptions::default(), &profiles_dir);
             assert!(
-                matches!(result, Err(InstallError::InvalidSkillName(_))),
-                "Expected InvalidSkillName for '{name}'"
+                matches!(result, Err(InstallError::InvalidComponentName(_))),
+                "Expected InvalidComponentName for '{name}'"
             );
         }
     }
