@@ -12,7 +12,7 @@ categories = ["command-line-utilities", "config", "development-tools"]
 authors = ["d0"]
 
 [dependencies]
-harness-locate = "0.2.6"
+harness-locate = "0.2.7"
 skills-locate = "0.1.1"
 
 

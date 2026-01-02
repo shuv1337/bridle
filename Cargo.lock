@@ -721,11 +721,12 @@ checksum = "e629b9b98ef3dd8afe6ca2bd0f89306cec16d43d907889945bc5d6687f2f13c7"
 
 [[package]]
 name = "harness-locate"
-version = "0.2.6"
+version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b18b83b73c20eabba144d099aff982b5cdacc93097f132382feafe9c677be704"
+checksum = "2932e4b95e696838ea5d5ba20f63f8e8c372187b1f34af355258f2a52ecf7a29"
 dependencies = [
  "home",
+ "regex",
  "serde",
  "serde_json",
  "serde_yaml",
