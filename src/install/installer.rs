@@ -7,7 +7,7 @@ use thiserror::Error;
 
 use harness_locate::{Harness, HarnessKind, Scope};
 
-use super::manifest::{manifest_path, InstallManifest, ManifestEntry};
+use super::manifest::{InstallManifest, ManifestEntry, manifest_path};
 use super::types::{
     AgentInfo, CommandInfo, ComponentType, InstallFailure, InstallOptions, InstallReport,
     InstallSkip, InstallSuccess, InstallTarget, SkillInfo, SkipReason, SourceInfo,

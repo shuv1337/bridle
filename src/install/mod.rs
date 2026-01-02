@@ -9,5 +9,5 @@ pub mod manifest;
 pub mod types;
 pub mod uninstaller;
 
-pub use discovery::{discover_skills, DiscoveryError};
+pub use discovery::{DiscoveryError, discover_skills};
 pub use types::*;

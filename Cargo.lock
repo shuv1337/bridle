@@ -177,7 +177,7 @@ dependencies = [
  "clap",
  "color-eyre",
  "crossterm",
- "dialoguer",
+ "dialoguer-multiselect",
  "harness-locate",
  "predicates",
  "ratatui",
@@ -543,8 +543,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "dialoguer"
+name = "dialoguer-multiselect"
 version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1a7e2857f67265459e63841508eaf1fb95044cb0ce96bdf355bcee584f6d2dbe"
 dependencies = [
  "console",
  "shell-words",
@@ -1581,6 +1583,8 @@ checksum = "e320a6c5ad31d271ad523dcf3ad13e2767ad8b1cb8f047f75a8aeaf8da139da2"
 [[package]]
 name = "skills-locate"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "558f0a10797d3f6b5da9e09ad9080109e168db6003fb0040d75a74de83c44fbf"
 dependencies = [
  "serde",
  "serde_json",

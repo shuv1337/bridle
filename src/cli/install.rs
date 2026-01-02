@@ -2,13 +2,13 @@
 
 use std::io::IsTerminal;
 
-use color_eyre::eyre::{eyre, Result};
-use dialoguer::theme::ColorfulTheme;
-use dialoguer::{GroupMultiSelect, MultiSelect};
+use color_eyre::eyre::{Result, eyre};
+use dialoguer_multiselect::theme::ColorfulTheme;
+use dialoguer_multiselect::{GroupMultiSelect, MultiSelect};
 
 use crate::config::{BridleConfig, ProfileManager};
 use crate::harness::HarnessConfig;
-use crate::install::discovery::{discover_skills, DiscoveryError};
+use crate::install::discovery::{DiscoveryError, discover_skills};
 use crate::install::installer::install_skills;
 use crate::install::{InstallOptions, InstallTarget};
 

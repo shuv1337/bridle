@@ -3,9 +3,9 @@
 use std::io::IsTerminal;
 use std::path::Path;
 
-use color_eyre::eyre::{eyre, Result};
-use dialoguer::theme::ColorfulTheme;
-use dialoguer::MultiSelect;
+use color_eyre::eyre::{Result, eyre};
+use dialoguer_multiselect::MultiSelect;
+use dialoguer_multiselect::theme::ColorfulTheme;
 
 use crate::config::BridleConfig;
 use crate::install::uninstaller::uninstall_components;
