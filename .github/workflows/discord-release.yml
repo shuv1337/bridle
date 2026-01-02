@@ -1,0 +1,52 @@
+name: Discord Release Notification
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      test_mode:
+        description: 'Send to test channel'
+        type: boolean
+        default: true
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set webhook URL
+        id: webhook
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.test_mode }}" == "true" ]]; then
+            echo "url=${{ secrets.DISCORD_TEST_WEBHOOK }}" >> $GITHUB_OUTPUT
+          else
+            echo "url=${{ secrets.DISCORD_RELEASE_WEBHOOK }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Send to Discord
+        env:
+          WEBHOOK_URL: ${{ steps.webhook.outputs.url }}
+        run: |
+          # For manual test, use dummy data
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            TITLE="Test Release v0.0.0"
+            BODY="This is a test notification."
+            URL="${{ github.server_url }}/${{ github.repository }}"
+          else
+            TITLE="${{ github.event.release.tag_name }}"
+            BODY=$(echo '${{ github.event.release.body }}' | head -c 2000)
+            URL="${{ github.event.release.html_url }}"
+          fi
+
+          curl -X POST "$WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d @- <<EOF
+          {
+            "embeds": [{
+              "title": "🚀 $TITLE",
+              "description": "$BODY",
+              "url": "$URL",
+              "color": 5814783
+            }]
+          }
+          EOF
