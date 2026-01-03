@@ -2,189 +2,141 @@
 
 # Bridle
 
-Unified configuration manager for AI coding assistants. Manage profiles, switch configurations, and view status across multiple harnesses from a single tool.
-
-![Screenshot](assets/screenshot.png)
-
-## Supported Harnesses
-
-| Harness         | Config Location        | Status          |
-| --------------- | ---------------------- | --------------- |
-| **Claude Code** | `~/.claude`            | Full support    |
-| **OpenCode**    | `~/.config/opencode`   | Full support    |
-| **Goose**       | `~/.config/goose`      | Full support    |
-| **AMP Code**    | `~/.config/amp`        | Full support    |
+Unified configuration manager for AI coding assistants. Manage profiles, install skills/agents/commands, and switch configurations across Claude Code, OpenCode, Goose, and Amp.
 
 ## Installation
 
-### From crates.io
-
 ```bash
+# Homebrew
+brew install neiii/tap/bridle
+
+# Cargo
 cargo install bridle
+
+# From source
+git clone https://github.com/neiii/bridle && cd bridle && cargo install --path .
 ```
 
-### From Homebrew
+## Quick Start
 
 ```bash
-brew tap neiii/bridle
-brew install bridle
-```
-
-### From source
-
-```bash
-git clone https://github.com/neiii/bridle
-cd bridle
-cargo install --path .
-```
-
-## Usage
-
-### Launch the TUI 
-
-```bash
+# Launch the TUI
 bridle
-# or 
-bridle tui
-```
 
-Interactive dashboard to browse harnesses, profiles, and configurations.
-
-### Quick Status
-
-```bash
+# See what's configured across all harnesses
 bridle status
+
+# Create a profile from your current config
+bridle profile create claude work --from-current
+
+# Switch between profiles
+bridle profile switch claude personal
 ```
 
-Shows all installed harnesses and active profiles:
+![Screenshot](assets/screenshot.png)
 
-```
-Harnesses:
-  Claude Code - installed
-    Config: ~/.claude
-  OpenCode - installed
-    Config: ~/.config/opencode
-  Goose - installed
-    Config: ~/.config/goose
-  AMP Code - installed
-    Config: ~/.config/amp
+## "Package Manager" for your harness
 
-Active Profiles:
-  claude-code: default
-  opencode: maestro
-  goose: default
-  amp-code: default
-```
-
-
-### Profile Management
+With Bridle, you're able to install skills, agents, commands, and MCPs from any GitHub repository, similar to how Claude Code does it. With Bridle, however, you're not limited to just one harness; we auto-translate all the paths, namings, schemas, and configurations for you. 
 
 ```bash
-# List profiles for a harness
-bridle profile list opencode
+# Install from GitHub
+bridle install owner/repo
 
-# Show profile details (model, MCP servers, plugins, etc.)
-bridle profile show opencode maestro
-
-# Create profile from current config
-bridle profile create opencode backup --from-current
-
-# Switch active profile
-bridle profile switch opencode maestro
-
-# Compare profiles
-bridle profile diff opencode default maestro
-
-# Edit profile with $EDITOR
-bridle profile edit opencode maestro
+# What happens:
+# 1. Bridle scans the repo for skills, agents, commands, and MCPs
+# 2. You select which components to install
+# 3. You choose target harnesses and profiles
+# 4. Bridle translates paths and configs for each harness automatically
 ```
 
-### JSON Output
+**Why this matters:** A skill written for Claude Code uses `~/.claude/skills/`. The same skill on OpenCode lives at `~/.config/opencode/skill/`. Bridle handles the translationyou install once, deploy anywhere.
 
-All commands support JSON output for scripting:
+| Component | Claude Code | OpenCode | Goose |
+| --------- | ----------- | -------- | ----- |
+| Skills    | `~/.claude/skills/` | `~/.config/opencode/skill/` | `~/.config/goose/skills/` |
+| Agents    | `~/.claude/plugins/*/agents/` | `~/.config/opencode/agent/` | — |
+| Commands  | `~/.claude/plugins/*/commands/` | `~/.config/opencode/command/` | — |
+| MCPs      | `~/.claude/.mcp.json` | `opencode.jsonc` | `config.yaml` |
 
-```bash
-bridle status --output json
-bridle profile show claude-code default -o json
-```
+## Core Concepts
 
-## What Bridle Manages
+**Harnesses** are AI coding assistants: `claude`, `opencode`, `goose`, `amp`
 
-For each harness, Bridle can read and display:
+**Profiles** are saved configurations. Each harness can have multiple profiles (e.g., `work`, `personal`, `minimal`). Bridle copies the active profile's config into the harness's config directory when you switch.
 
-- **Model** configuration
-- **MCP Servers** (Model Context Protocol)
-- **Plugins/Extensions**
-- **Commands & Skills**
-- **Theme** settings
+## Commands
+
+### Status & TUI
+
+| Command         | Description                                |
+| --------------- | ------------------------------------------ |
+| `bridle`        | Launch interactive TUI                     |
+| `bridle status` | Show active profiles across all harnesses  |
+| `bridle init`   | Initialize bridle config and default profiles |
+
+### Profiles
+
+| Command                                                 | Description                                 |
+| ------------------------------------------------------- | ------------------------------------------- |
+| `bridle profile list <harness>`                         | List all profiles for a harness             |
+| `bridle profile show <harness> <name>`                  | Show profile details (model, MCPs, plugins) |
+| `bridle profile create <harness> <name>`                | Create empty profile                        |
+| `bridle profile create <harness> <name> --from-current` | Create profile from current config          |
+| `bridle profile switch <harness> <name>`                | Activate a profile                          |
+| `bridle profile edit <harness> <name>`                  | Open profile in editor                      |
+| `bridle profile diff <harness> <name> [other]`          | Compare profiles                            |
+| `bridle profile delete <harness> <name>`                | Delete a profile                            |
+
+### Installing & Uninstalling
+
+| Command                                | Description                                           |
+| -------------------------------------- | ----------------------------------------------------- |
+| `bridle install <source>`              | Install skills/MCPs from GitHub (`owner/repo` or URL) |
+| `bridle install <source> --force`      | Overwrite existing installations                      |
+| `bridle uninstall <harness> <profile>` | Interactively remove components [experimental]        |
+
+### Configuration
+
+| Command                           | Description          |
+| --------------------------------- | -------------------- |
+| `bridle config get <key>`         | Get a config value   |
+| `bridle config set <key> <value>` | Set a config value   |
+
+**Config keys:** `profile_marker`, `editor`, `tui.view`, `default_harness`
+
+### Output Formats
+
+All commands support `-o, --output <format>`:
+- `text` (default) — Human-readable
+- `json` — Machine-readable
+- `auto` — Text for TTY, JSON for pipes
 
 ## Configuration
 
-Bridle stores its own config and profiles in `~/.config/bridle/`:
-
-```
-~/.config/bridle/
-├── config.toml           # Bridle settings
-└── profiles/
-    ├── claude-code/
-    │   └── default/      # Profile directory
-    ├── opencode/
-    ├── goose/
-    └── amp-code/
-```
-
-### Settings
-
-Configure Bridle via CLI or by editing `~/.config/bridle/config.toml`:
-
-```bash
-# View current configuration
-bridle config show
-
-# Set a configuration value
-bridle config set <key> <value>
-```
-
-| Setting | Type | Default | Description |
-|---------|------|---------|-------------|
-| `editor` | string | `$EDITOR` or `vi` | Editor for `bridle profile edit` |
-| `default_harness` | string | none | Harness to select when TUI opens |
-| `profile_marker` | bool | `false` | Create marker files in harness config dirs |
-| `tui.view` | string | `dashboard` | TUI view mode: `dashboard` or `legacy` |
-
-Example `config.toml`:
+Bridle stores its config at `~/.config/bridle/config.toml`:
 
 ```toml
-editor = "code --wait"
-default_harness = "opencode"
-profile_marker = true
+[active]
+claude = "work"
+opencode = "default"
+
+profile_marker = false  # Create marker files for debugging
+editor = "code --wait"  # Editor for `profile edit`
 
 [tui]
-view = "dashboard"
-
-[active]
-opencode = "maestro"
-claude-code = "default"
+view = "Dashboard"      # Will add more later :P 
 ```
 
-### Profile Markers
+## Supported Harnesses
 
-When `profile_marker = true`, Bridle creates a `BRIDLE_PROFILE_<name>` file in each harness's config directory when switching profiles. This lets other tools detect which Bridle profile is active.
-
-```bash
-# Enable profile markers
-bridle config set profile_marker true
-
-# After switching profiles, you'll see:
-# ~/.config/opencode/BRIDLE_PROFILE_maestro
-# ~/.claude/BRIDLE_PROFILE_default
-```
-
-Use cases:
-- Shell prompts that show the active profile
-- Scripts that behave differently per profile
-- Editor plugins that need profile awareness
+| Harness     | Config Location         | Status       |
+| ----------- | ----------------------- | ------------ |
+| Claude Code | `~/.claude/`            | Full support |
+| OpenCode    | `~/.config/opencode/`   | Full support |
+| Goose       | `~/.config/goose/`      | Full support |
+| Amp         | `~/.amp/`               | Experimental (ish) |
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+MIT
