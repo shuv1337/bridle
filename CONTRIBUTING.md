@@ -75,7 +75,7 @@ src/
 
 ## Response Times
 
-I maintain this project in my spare time. Please allow 3-7 days for responses on issues and PRs.
+I maintain this project in my spare time. Please allow 1-3 days for responses on issues and PRs.
 
 ## License
 
