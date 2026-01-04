@@ -12,6 +12,7 @@ use crate::config::{BridleConfig, ProfileManager};
 use crate::harness::HarnessConfig;
 use crate::install::discovery::{DiscoveryError, discover_skills};
 use crate::install::installer::{install_agent, install_command, install_skills};
+use crate::install::mcp_installer::{McpInstallOutcome, install_mcp};
 use crate::install::{
     AgentInfo, CommandInfo, DiscoveryResult, InstallOptions, InstallTarget, SkillInfo,
 };
@@ -43,6 +44,13 @@ fn harness_supports_commands(harness_id: &str) -> bool {
     parse_harness_kind(harness_id)
         .and_then(|kind| Harness::locate(kind).ok())
         .and_then(|h| h.commands(&Scope::Global).ok().flatten())
+        .is_some()
+}
+
+fn harness_supports_mcp(harness_id: &str) -> bool {
+    parse_harness_kind(harness_id)
+        .and_then(|kind| Harness::locate(kind).ok())
+        .and_then(|h| h.mcp_config_path())
         .is_some()
 }
 
@@ -210,12 +218,23 @@ pub fn run(source: &str, force: bool) -> Result<()> {
             }
         }
 
-        // TODO: Install MCP servers when installer is implemented
-        for (name, _server) in &selected.mcp_servers {
-            eprintln!(
-                "  ~ MCP server: {} (installer not yet implemented)",
-                name
-            );
+        // Install MCP servers
+        if !selected.mcp_servers.is_empty() && harness_supports_mcp(&target.harness) {
+            for (name, server) in &selected.mcp_servers {
+                match install_mcp(name, server, &target, &options) {
+                    Ok(McpInstallOutcome::Installed(success)) => {
+                        eprintln!("  + Installed MCP server: {}", success.name);
+                    }
+                    Ok(McpInstallOutcome::Skipped(skip)) => {
+                        eprintln!("  = Skipped MCP server: {} ({:?})", skip.name, skip.reason);
+                    }
+                    Err(e) => {
+                        eprintln!("  ! Error installing MCP server {}: {}", name, e);
+                    }
+                }
+            }
+        } else if !selected.mcp_servers.is_empty() {
+            eprintln!("  ~ Skipping MCP servers (harness does not support MCP)");
         }
     }
 
