@@ -5,7 +5,7 @@
 Unified configuration manager for AI coding assistants. Manage profiles, install skills/agents/commands, and switch configurations across Claude Code, OpenCode, Goose, and Amp.
 
 > [!WARNING]
-> If you're on a version before 0.2.3, please update immediately. Older versions had a bug that could cause data loss during profile switches primarily for Claude Code. 
+> If you're on a version before 0.2.2, please update immediately. Older versions had a critical bug that could cause data loss during profile switches.
 
 ## Installation
 
@@ -141,8 +141,7 @@ view = "Dashboard"      # Will add more later :P
 | Amp         | `~/.amp/`               | Experimental (ish) |
 
 ## Honorable Mentions
-- Thank you Melvyn for [pointing out my stupidity](https://x.com/melvynxdev/status/2007312037920289275)
-- Thank you Theo for [giving me a chance to show my work](https://x.com/theo/status/2007255666256425431)
+- Thank you Melvyn for [pointing out my stupidity](https://x.com/melvynxdev/status/2007312037920289275?s=20)
 
 ## License
 
