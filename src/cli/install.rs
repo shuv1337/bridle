@@ -433,8 +433,11 @@ fn select_targets(selected: &SelectedComponents) -> Result<Vec<InstallTarget>> {
         let compatible_mcp_count = selected.mcp_servers.len() - incompatible_mcp_count;
         let can_install_mcp = compatible_mcp_count > 0;
 
+        // Claude Code MCP support is in development (no global MCP config support)
+        let claude_mcp_in_dev = *kind == HarnessKind::ClaudeCode && !selected.mcp_servers.is_empty();
+
         let can_install_anything =
-            can_install_skills || can_install_agents || can_install_commands || can_install_mcp;
+            can_install_skills || can_install_agents || can_install_commands || (can_install_mcp && !claude_mcp_in_dev);
 
         let mut skipped: Vec<&str> = Vec::new();
         if !selected.agents.is_empty() && !supports_agents {
@@ -462,7 +465,11 @@ fn select_targets(selected: &SelectedComponents) -> Result<Vec<InstallTarget>> {
                 profile.to_string()
             };
 
-            let state = if !can_install_anything {
+            let state = if claude_mcp_in_dev {
+                ItemState::Disabled {
+                    reason: "MCP: in development".into(),
+                }
+            } else if !can_install_anything {
                 ItemState::Disabled {
                     reason: "no selected components supported".into(),
                 }
