@@ -12,8 +12,8 @@ categories = ["command-line-utilities", "config", "development-tools"]
 authors = ["d0"]
 
 [dependencies]
-harness-locate = "0.3.1"
-skills-locate = "0.2.1"
+harness-locate = { git = "https://github.com/neiii/harness-barn", branch = "master" }
+skills-locate = { git = "https://github.com/neiii/harness-barn", branch = "master" }
 
 
 # CLI
@@ -33,6 +33,7 @@ color-eyre = "0.6"
 
 # Utilities
 chrono = { version = "0.4", features = ["serde"] }
+textwrap = "0.16"
 
 # TUI
 ratatui = "0.29"
