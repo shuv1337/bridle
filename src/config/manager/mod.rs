@@ -799,7 +799,7 @@ mod tests {
         assert!(result.items.is_empty());
     }
 
-    // ==========================================================================
+    // ===================================================================CONFLICT_SEP
     // Profile Isolation Tests (GitHub Issue #21)
     //
     // These tests verify that resources (skills, agents, commands) installed to
@@ -808,7 +808,7 @@ mod tests {
     // Bug: When switching from profile A (with skills) to profile B (empty),
     // the skills remain in the harness config dir. When later switching away
     // from B, those skills get saved TO profile B, contaminating it.
-    // ==========================================================================
+    // ===================================================================CONFLICT_SEP
 
     /// Test that skills installed to one profile don't leak to another profile
     /// when switching profiles.

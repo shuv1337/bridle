@@ -12,8 +12,8 @@ categories = ["command-line-utilities", "config", "development-tools"]
 authors = ["d0"]
 
 [dependencies]
-harness-locate = "0.4"
-skills-locate = "0.2"
+harness-locate = { git = "https://github.com/neiii/harness-barn", branch = "master" }
+skills-locate = { git = "https://github.com/neiii/harness-barn", branch = "master" }
 
 
 # CLI
@@ -53,5 +53,3 @@ predicates = "3.1"
 [profile.dist]
 inherits = "release"
 lto = "thin"
-
-

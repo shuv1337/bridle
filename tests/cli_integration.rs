@@ -34,6 +34,33 @@ fn ensure_fake_opencode_installed(root: &Path) -> (PathBuf, PathBuf) {
     (xdg_config_home, bin_dir)
 }
 
+fn ensure_fake_crush_installed(root: &Path) -> (PathBuf, PathBuf) {
+    use std::fs;
+
+    let xdg_config_home = root.join("xdg");
+    let crush_config = xdg_config_home.join("crush");
+    fs::create_dir_all(&crush_config).unwrap();
+    fs::write(crush_config.join("crush.json"), "{}").unwrap();
+
+    let bin_dir = root.join("bin");
+    fs::create_dir_all(&bin_dir).unwrap();
+
+    #[cfg(unix)]
+    {
+        let crush_bin = bin_dir.join("crush");
+        fs::write(&crush_bin, "#!/bin/sh\nexit 0\n").unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&crush_bin, fs::Permissions::from_mode(0o755)).unwrap();
+    }
+
+    #[cfg(windows)]
+    {
+        fs::write(bin_dir.join("crush.cmd"), "@echo off\nexit /b 0\n").unwrap();
+    }
+
+    (xdg_config_home, bin_dir)
+}
+
 fn set_common_env(
     cmd: &mut Command,
     bridle_config_dir: &Path,
@@ -128,6 +155,95 @@ fn profile_create_and_show() {
         .assert()
         .success()
         .stdout(predicate::str::contains("show-test"));
+}
+
+#[test]
+#[ignore = "Requires Crush to be installed (harness-locate doesn't support XDG_CONFIG_HOME override on macOS)"]
+fn crush_profile_show_includes_model() {
+    use std::fs;
+
+    let temp = TempDir::new().unwrap();
+    let (xdg_config_home, bin_dir) = ensure_fake_crush_installed(temp.path());
+    let bridle_config = temp.path().join("bridle_config");
+
+    let mut cmd = bridle();
+    set_common_env(&mut cmd, &bridle_config, &xdg_config_home, &bin_dir);
+    cmd.args(["profile", "create", "crush", "model-test"])
+        .assert()
+        .success();
+
+    let crush_profile_dir = bridle_config.join("profiles/crush/model-test");
+    fs::write(
+        crush_profile_dir.join("crush.json"),
+        r#"{
+  "$schema": "https://charm.land/crush.json",
+  "model": "gpt-4",
+  "mcp": {}
+}"#,
+    )
+    .unwrap();
+
+    let mut cmd2 = bridle();
+    set_common_env(&mut cmd2, &bridle_config, &xdg_config_home, &bin_dir);
+    cmd2.args(["profile", "show", "crush", "model-test"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Model: gpt-4"));
+}
+
+#[test]
+#[ignore = "Requires Crush to be installed (harness-locate doesn't support XDG_CONFIG_HOME override on macOS)"]
+fn crush_profile_create_from_current_copies_crush_json() {
+    use std::fs;
+
+    let temp = TempDir::new().unwrap();
+    let bridle_config = temp.path().join("bridle");
+    let xdg_config_home = temp.path().join("xdg");
+    let crush_config = xdg_config_home.join("crush");
+
+    fs::create_dir_all(&crush_config).unwrap();
+    fs::write(
+        crush_config.join("crush.json"),
+        r#"{
+  "$schema": "https://charm.land/crush.json",
+  "model": "gpt-4",
+  "mcp": {}
+}"#,
+    )
+    .unwrap();
+
+    let bin_dir = temp.path().join("bin");
+    fs::create_dir_all(&bin_dir).unwrap();
+
+    #[cfg(unix)]
+    {
+        let crush_bin = bin_dir.join("crush");
+        fs::write(&crush_bin, "#!/bin/sh\nexit 0\n").unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&crush_bin, fs::Permissions::from_mode(0o755)).unwrap();
+    }
+
+    #[cfg(windows)]
+    {
+        fs::write(bin_dir.join("crush.cmd"), "@echo off\nexit /b 0\n").unwrap();
+    }
+
+    let mut cmd = bridle();
+    set_common_env(&mut cmd, &bridle_config, &xdg_config_home, &bin_dir);
+    cmd.args([
+        "profile",
+        "create",
+        "crush",
+        "from-current",
+        "--from-current",
+    ])
+    .assert()
+    .success();
+
+    let profile_crush_json = bridle_config.join("profiles/crush/from-current/crush.json");
+    assert!(profile_crush_json.exists());
+    let content = fs::read_to_string(profile_crush_json).unwrap();
+    assert!(content.contains("\"model\": \"gpt-4\""));
 }
 
 #[test]

@@ -53,6 +53,7 @@ fn harness_id(kind: &HarnessKind) -> &'static str {
         HarnessKind::Goose => "goose",
         HarnessKind::AmpCode => "amp-code",
         HarnessKind::CopilotCli => "copilot-cli",
+        HarnessKind::Crush => "crush",
         _ => "unknown",
     }
 }
@@ -64,6 +65,7 @@ fn harness_name(kind: &HarnessKind) -> &'static str {
         HarnessKind::Goose => "Goose",
         HarnessKind::AmpCode => "AMP Code",
         HarnessKind::CopilotCli => "Copilot CLI",
+        HarnessKind::Crush => "Crush",
         _ => "Unknown",
     }
 }

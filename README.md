@@ -2,12 +2,33 @@
 
 # Bridle
 
-Unified configuration manager for AI coding assistants. Manage profiles, install skills/agents/commands, and switch configurations across Claude Code, OpenCode, Goose, Amp, and Copilot CLI.
-
-> [!WARNING]
-> If you're on a version before 0.2.2, please update immediately. Older versions had a critical bug that could cause data loss during profile switches.
+Unified configuration manager for AI coding assistants. Manage profiles, install skills/agents/commands, and switch configurations across Claude Code, OpenCode, Goose, Amp, Copilot CLI, and Crush.
 
 ## Installation
+
+### Try it instantly (no install)
+
+Run once without installing:
+
+| Package Manager | Command              |
+| --------------- | -------------------- |
+| npx             | `npx bridle-ai`      |
+| bunx            | `bunx bridle-ai`     |
+| pnpm            | `pnpm dlx bridle-ai` |
+
+### Install globally
+
+For repeated use, install once:
+
+**Node package managers:**
+
+| Manager | Command                    |
+| ------- | -------------------------- |
+| npm     | `npm install -g bridle-ai` |
+| bun     | `bun install -g bridle-ai` |
+| pnpm    | `pnpm add -g bridle-ai`    |
+
+**Other methods:**
 
 ```bash
 # Homebrew
@@ -55,16 +76,16 @@ bridle install owner/repo
 
 **Why this matters:** A skill written for Claude Code uses `~/.claude/skills/`. The same skill on OpenCode lives at `~/.config/opencode/skill/`. MCPs follow different JSON/YAML schemas. Bridle handles all these differences for you.
 
-| Component | Claude Code | OpenCode | Goose | Copilot CLI |
-| --------- | ----------- | -------- | ----- | ----------- |
-| Skills    | `~/.claude/skills/` | `~/.config/opencode/skill/` | `~/.config/goose/skills/` | `~/.copilot/skills/` |
-| Agents    | `~/.claude/plugins/*/agents/` | `~/.config/opencode/agent/` | — | `~/.copilot/agents/` |
-| Commands  | `~/.claude/plugins/*/commands/` | `~/.config/opencode/command/` | — | — |
-| MCPs      | `~/.claude/.mcp.json` | `opencode.jsonc` | `config.yaml` | `~/.copilot/mcp-config.json` |
+| Component | Claude Code | OpenCode | Goose | Copilot CLI | Crush |
+| --------- | ----------- | -------- | ----- | ----------- | ----- |
+| Skills    | `~/.claude/skills/` | `~/.config/opencode/skill/` | `~/.config/goose/skills/` | `~/.copilot/skills/` | `~/.config/crush/skills/` |
+| Agents    | `~/.claude/plugins/*/agents/` | `~/.config/opencode/agent/` | — | `~/.copilot/agents/` | — |
+| Commands  | `~/.claude/plugins/*/commands/` | `~/.config/opencode/command/` | — | — | — |
+| MCPs      | `~/.claude/.mcp.json` | `opencode.jsonc` | `config.yaml` | `~/.copilot/mcp-config.json` | `crush.json` |
 
 ## Core Concepts
 
-**Harnesses** are AI coding assistants: `claude`, `opencode`, `goose`, `amp`, `copilot`
+**Harnesses** are AI coding assistants: `claude`, `opencode`, `goose`, `amp`, `copilot`, `crush`
 
 **Profiles** are saved configurations. Each harness can have multiple profiles (e.g., `work`, `personal`, `minimal`). Bridle copies the active profile's config into the harness's config directory when you switch.
 
@@ -120,12 +141,13 @@ All commands support `-o, --output <format>`:
 Bridle stores its config at `~/.config/bridle/config.toml`:
 
 ```toml
+profile_marker = false  # Create marker files for debugging
+editor = "code --wait"  # Editor for `profile edit`
+default_harness = "opencode" # Which tab to open on launch
+
 [active]
 claude = "work"
 opencode = "default"
-
-profile_marker = false  # Create marker files for debugging
-editor = "code --wait"  # Editor for `profile edit`
 
 [tui]
 view = "Dashboard"      # Will add more later :P 
@@ -140,10 +162,13 @@ view = "Dashboard"      # Will add more later :P
 | Goose       | `~/.config/goose/`      | Full support |
 | Amp         | `~/.amp/`               | Experimental (ish) |
 | Copilot CLI | `~/.copilot/`           | Full support |
+| Crush       | `~/.config/crush/`      | Full support (skills + MCP) |
 
 ## Honorable Mentions
 - Thank you Melvyn for [pointing out my stupidity](https://x.com/melvynxdev/status/2007312037920289275?s=20)
 - Thank you Theo for [giving me a chance to show my work](https://x.com/theo/status/2007255666256425431)
+- Thank you [Kai](https://github.com/kaiiiiiiiii) for the help on GitHub Copilot CLI integration 
+- Thank you [rari404](https://github.com/edlsh) for the help on Crush CLI intergration
 
 ## License
 

@@ -7,8 +7,37 @@ pub fn get_install_instructions(kind: HarnessKind) -> Vec<String> {
         HarnessKind::Goose => goose_instructions(),
         HarnessKind::AmpCode => amp_instructions(),
         HarnessKind::CopilotCli => copilot_cli_instructions(),
+        HarnessKind::Crush => crush_instructions(),
         _ => vec!["Unknown harness".to_string()],
     }
+}
+
+fn copilot_cli_instructions() -> Vec<String> {
+    if cfg!(target_os = "macos") {
+        vec![
+            "- npm install -g @github/copilot".to_string(),
+            "- brew install copilot-cli".to_string(),
+            "- curl -fsSL https://gh.io/copilot-install | bash".to_string(),
+        ]
+    } else if cfg!(target_os = "windows") {
+        vec![
+            "- npm install -g @github/copilot".to_string(),
+            "- winget install GitHub.Copilot".to_string(),
+        ]
+    } else {
+        vec![
+            "- npm install -g @github/copilot".to_string(),
+            "- brew install copilot-cli".to_string(),
+            "- curl -fsSL https://gh.io/copilot-install | bash".to_string(),
+        ]
+    }
+}
+
+fn crush_instructions() -> Vec<String> {
+    vec![
+        "- Visit https://charm.sh/crush for installation instructions".to_string(),
+        "- brew install charmbracelet/tap/crush".to_string(),
+    ]
 }
 
 fn claude_code_instructions() -> Vec<String> {
@@ -93,27 +122,6 @@ fn amp_instructions() -> Vec<String> {
     }
 }
 
-fn copilot_cli_instructions() -> Vec<String> {
-    if cfg!(target_os = "macos") {
-        vec![
-            "- npm install -g @github/copilot".to_string(),
-            "- brew install copilot-cli".to_string(),
-            "- curl -fsSL https://gh.io/copilot-install | bash".to_string(),
-        ]
-    } else if cfg!(target_os = "windows") {
-        vec![
-            "- npm install -g @github/copilot".to_string(),
-            "- winget install GitHub.Copilot".to_string(),
-        ]
-    } else {
-        vec![
-            "- npm install -g @github/copilot".to_string(),
-            "- brew install copilot-cli".to_string(),
-            "- curl -fsSL https://gh.io/copilot-install | bash".to_string(),
-        ]
-    }
-}
-
 pub fn get_empty_state_message(
     kind: HarnessKind,
     status: InstallationStatus,
@@ -125,6 +133,7 @@ pub fn get_empty_state_message(
         HarnessKind::Goose => "Goose",
         HarnessKind::AmpCode => "AMP Code",
         HarnessKind::CopilotCli => "Copilot CLI",
+        HarnessKind::Crush => "Crush",
         _ => "Unknown",
     };
 
@@ -172,6 +181,7 @@ pub fn get_empty_state_message(
                 HarnessKind::Goose => "goose",
                 HarnessKind::AmpCode => "amp",
                 HarnessKind::CopilotCli => "copilot",
+                HarnessKind::Crush => "crush",
                 _ => "<unknown>",
             };
 
